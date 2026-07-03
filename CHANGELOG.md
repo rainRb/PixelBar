@@ -2,6 +2,28 @@
 
 本文件记录各版本的显著变更。完整提交历史见 GitHub。
 
+## [Unreleased]
+
+## [0.0.4] - 2026-07-03
+
+### 新增
+
+- **网易云音乐动态歌词**（须 BetterNCM + [InfLink-rs](https://github.com/apoint123/inflink-rs)）
+  - 歌词页 **一键安装** InfLink-rs（可内置安装包）
+  - SMTC `NCM-{歌曲ID}` + 本地 Temp 缓存 + 公开 API 按 ID 拉取歌词
+  - YRC / LRC 混合解析，免责声明与元数据行过滤
+- **界面重构**：深色主题、统一卡片与导航分组、歌词运行状态面板
+
+### 改进
+
+- **QQ 音乐歌词**：SMTC 进度外推；有可靠进度时优先时间轴取词；Live 版本匹配与缓存校验
+- **歌词时间偏移**说明修正（正数提前、负数延后）
+- 路径均动态解析（注册表 / `%LocalAppData%`），无硬编码用户目录
+
+### 文档
+
+- Wiki：[Lyrics-NetEase](docs/wiki/Lyrics-NetEase.md)、功能范围与路线图更新至 v0.0.4
+
 ## [0.0.3.1] - 2026-06-28
 
 ### 修复
@@ -55,6 +77,7 @@
 - 托盘、开机启动、首次使用引导
 - GitHub Actions CI / Release 工作流
 
+[0.0.4]: https://github.com/traceless929/PixelBar/compare/v0.0.3.1...v0.0.4
 [0.0.3.1]: https://github.com/traceless929/PixelBar/compare/v0.0.3...v0.0.3.1
 [0.0.3]: https://github.com/traceless929/PixelBar/compare/v0.0.2.1...v0.0.3
 [0.0.2.1]: https://github.com/traceless929/PixelBar/compare/v0.0.2...v0.0.2.1

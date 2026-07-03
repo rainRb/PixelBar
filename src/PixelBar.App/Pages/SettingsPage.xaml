@@ -14,7 +14,7 @@
             MaxWidth="{StaticResource AppContentMaxWidth}"
             Padding="{StaticResource AppPagePadding}"
             HorizontalAlignment="Center">
-            <StackPanel Spacing="20">
+            <StackPanel Spacing="{StaticResource AppSectionSpacing}">
                 <controls:PageHeader
                     Subtitle="设备连接、开机启动与托盘行为。"
                     Title="设置" />
@@ -83,11 +83,8 @@
                             Text="—" />
                         <TextBlock
                             x:Name="CurrentDevicePath"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            FontFamily="Consolas"
-                            FontSize="12"
-                            Text="—"
-                            TextWrapping="Wrap" />
+                            Style="{StaticResource MonoCaptionStyle}"
+                            Text="—" />
                     </StackPanel>
                 </Border>
 
@@ -114,11 +111,8 @@
                                         <StackPanel Grid.Column="1" Spacing="4">
                                             <TextBlock FontWeight="SemiBold" Text="{x:Bind DisplayName}" />
                                             <TextBlock
-                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                FontFamily="Consolas"
-                                                FontSize="11"
-                                                Text="{x:Bind DevicePath}"
-                                                TextWrapping="Wrap" />
+                                                Style="{StaticResource MonoCaptionStyle}"
+                                                Text="{x:Bind DevicePath}" />
                                         </StackPanel>
                                     </Grid>
                                 </DataTemplate>

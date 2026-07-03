@@ -40,6 +40,8 @@ publish-test/
 *.deps.json
 !**/Assets/**/*.ico
 !**/Assets/**/*.png
+!**/Assets/NetEaseInfLink/betterncm_installer.exe
+!**/Assets/NetEaseInfLink/InfLink-rs.plugin
 
 # WinUI / MSIX intermediates
 *.pri.xml

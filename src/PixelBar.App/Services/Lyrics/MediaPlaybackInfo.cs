@@ -6,4 +6,7 @@ public sealed record MediaPlaybackInfo(
     TimeSpan Position,
     TimeSpan Duration,
     bool IsPlaying,
-    string AppId);
+    string AppId,
+    bool HasTrustedTimeline = true,
+    string? NetEaseSongId = null,
+    bool IsInfLinkSession = false);

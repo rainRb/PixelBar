@@ -14,7 +14,7 @@
             MaxWidth="{StaticResource AppContentMaxWidth}"
             Padding="{StaticResource AppPagePadding}"
             HorizontalAlignment="Center">
-            <StackPanel Spacing="20">
+            <StackPanel Spacing="{StaticResource AppSectionSpacing}">
                 <controls:PageHeader
                     Subtitle="固件内置时钟样式，单击即可切换。游戏、宠物等模板需使用官方 TempoHub。"
                     Title="像素屏 · 时钟" />

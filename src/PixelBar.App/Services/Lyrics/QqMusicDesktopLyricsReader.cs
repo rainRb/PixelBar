@@ -71,6 +71,26 @@ public static class QqMusicDesktopLyricsReader
         return new DesktopLyricSnapshot(title, null, title);
     }
 
+    public static bool IsUsableLyricLine(string? line, string? trackTitle = null, string? trackArtist = null)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+            return false;
+
+        line = line.Trim();
+        if (line.Length < 2 || line.Length > 80)
+            return false;
+
+        if (!string.IsNullOrWhiteSpace(trackTitle)
+            && LyricMatchHelper.TrackMatches(line, null, trackTitle, trackArtist))
+            return false;
+
+        if (line.Contains("QQ音乐", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("QQMusic", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return !LyricMetadataFilter.IsMetadataLine(line);
+    }
+
     private static string ReadWindowText(IntPtr hWnd)
     {
         var length = GetWindowTextLength(hWnd);

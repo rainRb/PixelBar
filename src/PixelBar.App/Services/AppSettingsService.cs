@@ -1,4 +1,5 @@
 using System.Text.Json;
+using PixelBar_App.Services.Lyrics;
 
 namespace PixelBar_App.Services;
 
@@ -85,13 +86,17 @@ public sealed class AppSettingsService
         bool scrollLongLines,
         int timingOffsetMs,
         bool scrollRightToLeft,
-        string? lyricDirectory)
+        LyricsMusicProvider provider,
+        string? qqLyricDirectory,
+        string? netEaseLyricDirectory)
     {
         Current.LyricsEnabled = enabled;
         Current.LyricsScrollLongLines = scrollLongLines;
         Current.LyricsTimingOffsetMs = timingOffsetMs;
         Current.LyricsScrollRightToLeft = scrollRightToLeft;
-        Current.QqMusicLyricDirectory = string.IsNullOrWhiteSpace(lyricDirectory) ? null : lyricDirectory.Trim();
+        Current.LyricsProvider = provider;
+        Current.QqMusicLyricDirectory = string.IsNullOrWhiteSpace(qqLyricDirectory) ? null : qqLyricDirectory.Trim();
+        Current.NetEaseLyricDirectory = string.IsNullOrWhiteSpace(netEaseLyricDirectory) ? null : netEaseLyricDirectory.Trim();
         Save(Current);
         Lyrics.LyricsSyncService.Instance.ApplySettings();
     }

@@ -14,7 +14,7 @@
             MaxWidth="{StaticResource AppContentMaxWidth}"
             Padding="{StaticResource AppPagePadding}"
             HorizontalAlignment="Center">
-            <StackPanel Spacing="20">
+            <StackPanel Spacing="{StaticResource AppSectionSpacing}">
                 <controls:PageHeader
                     Subtitle="设备实时生成音频频谱动画。单击样式即可切换，无需上传帧数据。"
                     Title="像素屏 · 频谱" />

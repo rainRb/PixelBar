@@ -4,6 +4,7 @@
 
 - [路线图](Roadmap)
 - [QQ 音乐动态歌词](Lyrics-QQMusic)
+- [网易云音乐动态歌词](Lyrics-NetEase)
 - [下载与 Release](Downloads)
 - [SDK 开发](SDK-Development)
 - [功能支持范围](Features)

@@ -22,7 +22,7 @@
 dotnet run --project src/PixelBar.App
 ```
 
-打开 **设置** 选择设备后，即可使用文字、灯光、时钟、频谱、屏色等功能；**v0.0.2** 起支持 [QQ 音乐动态歌词](https://github.com/traceless929/PixelBar/wiki/Lyrics-QQMusic)。详见 [`src/PixelBar.App/README.md`](src/PixelBar.App/README.md)。
+打开 **设置** 选择设备后，即可使用文字、灯光、时钟、频谱、屏色等功能；**v0.0.4** 起支持 [QQ 音乐](https://github.com/traceless929/PixelBar/wiki/Lyrics-QQMusic) 与 [网易云音乐](https://github.com/traceless929/PixelBar/wiki/Lyrics-NetEase) 动态歌词。详见 [`src/PixelBar.App/README.md`](src/PixelBar.App/README.md)。
 
 ### 命令行
 

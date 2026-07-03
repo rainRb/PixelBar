@@ -5,7 +5,6 @@ using Microsoft.UI.Xaml.Media;
 using PixelBar_App.Helpers;
 using PixelBar_App.Pages;
 using PixelBar_App.Services;
-using Windows.UI;
 
 namespace PixelBar_App;
 
@@ -202,12 +201,12 @@ public sealed partial class MainWindow : Window
         var service = PixelBarService.Instance;
         if (service.HasSelectedDevice)
         {
-            ConnectionDot.Fill = new SolidColorBrush(Color.FromArgb(255, 16, 124, 65));
+            ConnectionDot.Fill = (Brush)Application.Current.Resources["PbConnectedBrush"];
             ConnectionText.Text = $"已连接 · {service.SelectedDeviceDisplayName}";
             return;
         }
 
-        ConnectionDot.Fill = new SolidColorBrush(Color.FromArgb(255, 196, 43, 28));
-        ConnectionText.Text = "未连接设备 · 请前往设置";
+        ConnectionDot.Fill = (Brush)Application.Current.Resources["PbDisconnectedBrush"];
+        ConnectionText.Text = "未连接设备";
     }
 }

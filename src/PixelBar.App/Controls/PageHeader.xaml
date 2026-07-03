@@ -7,15 +7,29 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <StackPanel Spacing="6">
-        <TextBlock
-            x:Name="TitleBlock"
-            Style="{StaticResource TitleTextBlockStyle}"
-            Text="{x:Bind Title, Mode=OneWay}" />
-        <TextBlock
-            x:Name="SubtitleBlock"
-            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-            Text="{x:Bind Subtitle, Mode=OneWay}"
-            TextWrapping="Wrap" />
-    </StackPanel>
+    <Grid ColumnSpacing="14">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border
+            Grid.Column="0"
+            Width="4"
+            Margin="0,4,0,4"
+            VerticalAlignment="Stretch"
+            Background="{StaticResource PbAccentBrush}"
+            CornerRadius="2" />
+
+        <StackPanel Grid.Column="1" Spacing="8">
+            <TextBlock
+                x:Name="TitleBlock"
+                Style="{StaticResource PageTitleStyle}"
+                Text="{x:Bind Title, Mode=OneWay}" />
+            <TextBlock
+                x:Name="SubtitleBlock"
+                Style="{StaticResource CaptionTextStyle}"
+                Text="{x:Bind Subtitle, Mode=OneWay}" />
+        </StackPanel>
+    </Grid>
 </UserControl>

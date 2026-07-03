@@ -13,7 +13,7 @@
             MaxWidth="{StaticResource AppContentMaxWidth}"
             Padding="{StaticResource AppPagePadding}"
             HorizontalAlignment="Center">
-            <StackPanel Spacing="20">
+            <StackPanel Spacing="{StaticResource AppSectionSpacing}">
                 <controls:PageHeader
                     Subtitle="在像素屏上显示自定义文字。静态模式建议不超过 16 字；发送前会自动写入布局包。"
                     Title="文字显示" />

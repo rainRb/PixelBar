@@ -48,63 +48,26 @@ public sealed partial class QqMusicLyricProvider
     }
 
     public LrcDocument? TryFindLyrics(string title, string artist, string? customDirectory)
-
     {
-
         EnsureIndex(customDirectory);
+        var match = LyricMatchHelper.PickBestMatch(_index, title, artist);
+        if (match is null)
+            return null;
 
-
-
-        LrcDocument? best = null;
-
-        var bestScore = 0;
-
-        foreach (var entry in _index)
-
+        if (!string.IsNullOrWhiteSpace(match.Title)
+            && !string.IsNullOrWhiteSpace(title)
+            && !LyricMatchHelper.TrackMatches(match.Title, match.Artist, title, artist))
         {
-
-            var score = ScoreMatch(entry, title, artist);
-
-            if (score > bestScore)
-
-            {
-
-                bestScore = score;
-
-                best = entry.Document;
-
-            }
-
+            var score = _index
+                .Where(entry => ReferenceEquals(entry.Document, match))
+                .Select(entry => LyricMatchHelper.ScoreMatch(entry, title, artist))
+                .DefaultIfEmpty(0)
+                .Max();
+            if (score < 80)
+                return null;
         }
 
-
-
-        if (bestScore >= 80)
-
-            return best;
-
-
-
-        var recent = _index
-
-            .Where(entry => entry.Modified >= DateTime.Now.AddMinutes(-5))
-
-            .OrderByDescending(entry => entry.Modified)
-
-            .Select(entry => entry.Document)
-
-            .FirstOrDefault(document => document is not null);
-
-
-
-        if (recent is not null && bestScore < 40)
-
-            return recent;
-
-
-
-        return bestScore >= 40 ? best : recent;
-
+        return match;
     }
 
 
@@ -512,84 +475,6 @@ public sealed partial class QqMusicLyricProvider
     private static partial Regex FileNameRegex();
 
 
-
-    private static int ScoreMatch(IndexedLyricEntry entry, string title, string artist)
-
-    {
-
-        var score = 0;
-
-        if (!string.IsNullOrWhiteSpace(entry.Title) && TextMatch(entry.Title, title))
-
-            score += 60;
-
-        if (!string.IsNullOrWhiteSpace(entry.Artist) && TextMatch(entry.Artist, artist))
-
-            score += 40;
-
-        if (!string.IsNullOrWhiteSpace(entry.Document.Title) && TextMatch(entry.Document.Title, title))
-
-            score += 40;
-
-        if (!string.IsNullOrWhiteSpace(entry.Document.Artist) && TextMatch(entry.Document.Artist, artist))
-
-            score += 30;
-
-        return score;
-
-    }
-
-
-
-    private static bool TextMatch(string left, string right)
-
-    {
-
-        var a = Normalize(left);
-
-        var b = Normalize(right);
-
-        if (a.Length == 0 || b.Length == 0)
-
-            return false;
-
-
-
-        return a.Equals(b, StringComparison.Ordinal)
-
-            || a.Contains(b, StringComparison.Ordinal)
-
-            || b.Contains(a, StringComparison.Ordinal);
-
-    }
-
-
-
-    private static string Normalize(string value)
-
-    {
-
-        var chars = value.Where(static c => !char.IsWhiteSpace(c) && c is not '-' and not '_' and not '（' and not '）' and not '(' and not ')').ToArray();
-
-        return new string(chars).ToLowerInvariant();
-
-    }
-
-
-
-    private sealed record IndexedLyricEntry(
-
-        string SourceKey,
-
-        string Path,
-
-        DateTime Modified,
-
-        string? Title,
-
-        string? Artist,
-
-        LrcDocument Document);
 
 }
 

@@ -9,7 +9,7 @@
     Title="PixelBar"
     mc:Ignorable="d">
     <Window.SystemBackdrop>
-        <MicaBackdrop />
+        <MicaBackdrop Kind="BaseAlt" />
     </Window.SystemBackdrop>
 
     <Grid>
@@ -34,105 +34,110 @@
             IsPaneToggleButtonVisible="False"
             IsSettingsVisible="False"
             Loaded="NavView_Loaded"
-            OpenPaneLength="280"
+            OpenPaneLength="300"
             PaneDisplayMode="Left"
             SelectionChanged="NavView_SelectionChanged">
+            <NavigationView.Resources>
+                <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
+            </NavigationView.Resources>
+
             <NavigationView.PaneHeader>
-                <StackPanel Margin="16,8,16,12" Spacing="10">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Image
-                            x:Name="NavLogoImage"
-                            Width="48"
-                            Height="48"
-                            Stretch="Uniform" />
-                        <StackPanel Spacing="2" VerticalAlignment="Center">
+                <StackPanel Margin="20,12,20,16" Spacing="16">
+                    <StackPanel Orientation="Horizontal" Spacing="14">
+                        <Border
+                            Width="52"
+                            Height="52"
+                            Background="{StaticResource PbMutedBrush}"
+                            BorderBrush="{StaticResource PbBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="14">
+                            <Image
+                                x:Name="NavLogoImage"
+                                Margin="6"
+                                Stretch="Uniform" />
+                        </Border>
+                        <StackPanel Spacing="4" VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource NavBrandTitleStyle}" Text="PixelBar" />
                             <TextBlock
-                                FontSize="20"
-                                FontWeight="SemiBold"
-                                Text="PixelBar" />
-                            <TextBlock
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="Halo PixelBar 控制面板"
-                                TextWrapping="Wrap" />
+                                Style="{StaticResource NavBrandSubtitleStyle}"
+                                Text="Halo 像素屏控制面板" />
                         </StackPanel>
                     </StackPanel>
-                    <Border
-                        x:Name="ConnectionBadge"
-                        Padding="10,6"
-                        Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
+
+                    <Border x:Name="ConnectionBadge" Style="{StaticResource ConnectionBadgeStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
                             <Ellipse
                                 x:Name="ConnectionDot"
-                                Width="8"
-                                Height="8"
+                                Width="10"
+                                Height="10"
                                 VerticalAlignment="Center"
-                                Fill="{ThemeResource SystemFillColorCriticalBrush}" />
-                            <TextBlock
-                                x:Name="ConnectionText"
-                                VerticalAlignment="Center"
-                                FontSize="12"
-                                Text="未连接设备"
-                                TextWrapping="Wrap" />
+                                Fill="{StaticResource PbDisconnectedBrush}" />
+                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                <TextBlock
+                                    x:Name="ConnectionText"
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    Text="未连接设备"
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    FontSize="11"
+                                    Text="前往设置选择 HID 设备"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>
             </NavigationView.PaneHeader>
 
             <NavigationView.MenuItems>
+                <NavigationViewItemHeader Content="显示" />
                 <NavigationViewItem
                     Content="文字"
                     IsSelected="True"
                     Tag="text">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE8D2;" />
+                        <FontIcon FontSize="16" Glyph="&#xE8D2;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="灯光" Tag="light">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE706;" />
+                        <FontIcon FontSize="16" Glyph="&#xE706;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="动态歌词" Tag="lyrics">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE8B1;" />
+                        <FontIcon FontSize="16" Glyph="&#xE8B1;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="像素屏">
+
+                <NavigationViewItemHeader Content="像素屏" />
+                <NavigationViewItem Content="时钟" Tag="clock">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE7F4;" />
+                        <FontIcon FontSize="16" Glyph="&#xE121;" />
                     </NavigationViewItem.Icon>
-                    <NavigationViewItem.MenuItems>
-                        <NavigationViewItem Content="时钟" Tag="clock">
-                            <NavigationViewItem.Icon>
-                                <FontIcon Glyph="&#xE121;" />
-                            </NavigationViewItem.Icon>
-                        </NavigationViewItem>
-                        <NavigationViewItem Content="频谱" Tag="spectrum">
-                            <NavigationViewItem.Icon>
-                                <FontIcon Glyph="&#xE8B9;" />
-                            </NavigationViewItem.Icon>
-                        </NavigationViewItem>
-                        <NavigationViewItem Content="颜色" Tag="screen-color">
-                            <NavigationViewItem.Icon>
-                                <FontIcon Glyph="&#xE790;" />
-                            </NavigationViewItem.Icon>
-                        </NavigationViewItem>
-                    </NavigationViewItem.MenuItems>
+                </NavigationViewItem>
+                <NavigationViewItem Content="频谱" Tag="spectrum">
+                    <NavigationViewItem.Icon>
+                        <FontIcon FontSize="16" Glyph="&#xE8B9;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="颜色" Tag="screen-color">
+                    <NavigationViewItem.Icon>
+                        <FontIcon FontSize="16" Glyph="&#xE790;" />
+                    </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>
 
             <NavigationView.FooterMenuItems>
                 <NavigationViewItem Content="设置" Tag="settings">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE713;" />
+                        <FontIcon FontSize="16" Glyph="&#xE713;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.FooterMenuItems>
 
-            <Frame x:Name="NavFrame" />
+            <Frame x:Name="NavFrame" Padding="0,8,0,0" />
         </NavigationView>
     </Grid>
 </Window>

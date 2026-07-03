@@ -1,343 +1,195 @@
 using PixelBar_App.Services;
 
-
-
 namespace PixelBar_App.Services.Lyrics;
 
-
-
 public sealed class LyricsSyncService
-
 {
-
     public static LyricsSyncService Instance { get; } = new();
 
-
-
     private readonly MediaSessionMonitor _monitor = new();
-
     private readonly QqMusicLyricProvider _qqLyricProvider = new();
-
+    private readonly NetEaseLyricProvider _netEaseLyricProvider = new();
+    private readonly NetEaseAnchoredPlaybackTracker _netEasePositionTracker = new();
     private readonly object _gate = new();
 
-
-
     private CancellationTokenSource? _cts;
-
     private Task? _loopTask;
-
     private int _resyncVersion;
 
     public event EventHandler<LyricsSyncStatusEvent>? StatusChanged;
 
-
-
     public LyricsSyncStatus CurrentStatus { get; private set; } = LyricsSyncStatus.Idle;
-
-
-
     public LyricSource LastSource { get; private set; } = LyricSource.None;
-
-
-
     public string? LastTitle { get; private set; }
-
-
-
     public string? LastArtist { get; private set; }
-
-
-
     public string? LastLine { get; private set; }
-
-
-
     public string? DiagnosticMessage { get; private set; }
 
-
-
     public void ApplySettings()
-
     {
-
         var settings = AppSettingsService.Instance.Current;
-
         if (settings.LyricsEnabled)
-
             Start();
-
         else
-
             Stop();
-
     }
-
-
 
     public void Start()
-
     {
-
         lock (_gate)
-
         {
-
             if (_loopTask is { IsCompleted: false })
-
                 return;
 
-
-
             _cts = new CancellationTokenSource();
-
             _loopTask = Task.Run(() => RunLoopAsync(_cts.Token));
-
-            UpdateStatus(LyricsSyncStatus.WaitingForQqMusic, LyricSource.None, null, null, null, BuildDiagnostic(null, null));
-
+            UpdateStatus(
+                LyricsSyncStatus.WaitingForPlayer,
+                LyricSource.None,
+                null,
+                null,
+                null,
+                BuildDiagnostic(AppSettingsService.Instance.Current.LyricsProvider, null, null));
         }
-
     }
-
-
 
     public void Stop()
-
     {
-
         lock (_gate)
-
         {
-
             _cts?.Cancel();
-
             _cts?.Dispose();
-
             _cts = null;
-
             _loopTask = null;
-
             UpdateStatus(LyricsSyncStatus.Idle, LyricSource.None, null, null, null, null);
-
         }
-
     }
 
-    /// <summary>清空歌词索引并强制下一轮重新匹配 QQ 音乐与 qrc 缓存。</summary>
+    /// <summary>清空歌词索引并强制下一轮重新匹配播放器与本地缓存。</summary>
     public void RequestResync()
     {
-        _qqLyricProvider.InvalidateIndex();
+        var provider = AppSettingsService.Instance.Current.LyricsProvider;
+        if (provider == LyricsMusicProvider.QqMusic)
+            _qqLyricProvider.InvalidateIndex();
+        else
+            _netEaseLyricProvider.InvalidateIndex();
+
+        _netEasePositionTracker.Reset();
         Interlocked.Increment(ref _resyncVersion);
         if (AppSettingsService.Instance.Current.LyricsEnabled)
             Start();
     }
 
-
-
     private async Task RunLoopAsync(CancellationToken cancellationToken)
-
     {
-
         string? trackKey = null;
-
         LrcDocument? document = null;
-
         LyricSource documentSource = LyricSource.None;
-
         string? lastSentLine = null;
-
         var consumedResyncVersion = Volatile.Read(ref _resyncVersion);
 
-
-
         while (!cancellationToken.IsCancellationRequested)
-
         {
-
             try
-
             {
-
                 var settings = AppSettingsService.Instance.Current;
-
+                var provider = settings.LyricsProvider;
                 var resyncVersion = Volatile.Read(ref _resyncVersion);
-
                 if (resyncVersion != consumedResyncVersion)
-
                 {
-
                     consumedResyncVersion = resyncVersion;
-
                     trackKey = null;
-
                     document = null;
-
                     documentSource = LyricSource.None;
-
                     lastSentLine = null;
-
+                    _netEasePositionTracker.Reset();
                 }
 
-                var playback = await _monitor.TryGetQqMusicPlaybackAsync(cancellationToken).ConfigureAwait(false);
-
-                var desktop = QqMusicDesktopLyricsReader.TryRead();
-
-                var recentQrc = _qqLyricProvider.TryFindMostRecent(settings.QqMusicLyricDirectory);
-
-
+                var playback = await _monitor.TryGetPlaybackAsync(provider, cancellationToken).ConfigureAwait(false);
+                var desktop = TryReadDesktopLyrics(provider);
+                var recentLyric = TryFindMostRecent(provider, settings);
+                playback ??= TryBuildFallbackPlayback(provider, recentLyric, desktop);
 
                 if (playback is null && desktop is null)
-
                 {
-
                     trackKey = null;
-
                     document = null;
-
                     documentSource = LyricSource.None;
-
                     lastSentLine = null;
-
+                    _netEasePositionTracker.Reset();
                     UpdateStatus(
-
-                        LyricsSyncStatus.WaitingForQqMusic,
-
+                        LyricsSyncStatus.WaitingForPlayer,
                         LyricSource.None,
-
                         null,
-
                         null,
-
                         null,
-
-                        BuildDiagnostic(null, null));
-
+                        BuildDiagnostic(provider, null, null));
                     await Task.Delay(1000, cancellationToken).ConfigureAwait(false);
-
                     continue;
-
                 }
-
-
 
                 var title = playback?.Title;
-
                 var artist = playback?.Artist;
 
-
-
                 if (string.IsNullOrWhiteSpace(title) || title == "未知歌曲")
-
                 {
-
-                    title = recentQrc?.Title;
-
-                    if (string.IsNullOrWhiteSpace(title) && desktop?.Artist is not null)
-
-                        title = GuessTitleFromRecentQrc(settings, desktop.Value.Artist) ?? LastTitle;
-
+                    title = recentLyric?.Title ?? desktop?.Line ?? LastTitle;
+                    if (provider == LyricsMusicProvider.QqMusic)
+                        title ??= GuessTitleFromRecentQq(settings, desktop?.Artist);
                 }
-
-
 
                 if (string.IsNullOrWhiteSpace(artist) || artist == "未知歌手")
-
-                    artist = recentQrc?.Artist ?? desktop?.Artist ?? LastArtist;
-
-
+                    artist = recentLyric?.Artist ?? desktop?.Artist ?? LastArtist;
 
                 if (playback is not null && !playback.IsPlaying)
-
                 {
-
                     UpdateStatus(
-
                         LyricsSyncStatus.Paused,
-
                         LastSource,
-
                         title,
-
                         artist,
-
                         lastSentLine,
-
-                        BuildDiagnostic(playback, desktop));
-
+                        BuildDiagnostic(provider, playback, desktop));
                     await Task.Delay(800, cancellationToken).ConfigureAwait(false);
-
                     continue;
-
                 }
 
-
-
-                var nextTrackKey = $"{title}|{artist}|{recentQrc?.Title}|{recentQrc?.Artist}|{desktop?.RawTitle}";
-
+                var nextTrackKey = $"{provider}|{title}|{artist}";
                 if (!string.Equals(trackKey, nextTrackKey, StringComparison.Ordinal))
-
                 {
-
                     trackKey = nextTrackKey;
-
-                    document = ResolveDocument(settings, title, artist, out documentSource);
-
+                    _netEasePositionTracker.Reset();
+                    (document, documentSource) = await ResolveDocumentAsync(
+                        provider,
+                        settings,
+                        title,
+                        artist,
+                        playback?.NetEaseSongId,
+                        cancellationToken).ConfigureAwait(false);
                     lastSentLine = null;
-
                     title ??= document?.Title;
-
                     artist ??= document?.Artist;
 
+                    if (provider == LyricsMusicProvider.NetEaseCloudMusic)
+                        _netEaseLyricProvider.RememberTrackMetadata(title, artist, playback?.NetEaseSongId, settings.NetEaseLyricDirectory);
                 }
 
-
-
-                var position = playback?.Position ?? TimeSpan.Zero;
-
-                LyricSource source;
-
-                string displayText;
-
-
-
-                if (document?.GetLineAt(position, settings.LyricsTimingOffsetMs) is { } timedLine)
-
-                {
-
-                    source = documentSource;
-
-                    displayText = timedLine;
-
-                }
-
-                else if (desktop is { Line: var desktopLine, Artist: var desktopArtist } && !string.IsNullOrWhiteSpace(desktopLine))
-
-                {
-
-                    source = LyricSource.Desktop;
-
-                    displayText = desktopLine;
-
-                    title ??= document?.Title;
-
-                    artist ??= desktopArtist ?? document?.Artist;
-
-                }
-
-                else
-
-                {
-
-                    source = LyricSource.Fallback;
-
-                    displayText = !string.IsNullOrWhiteSpace(title)
-
-                        ? $"{title} · {artist}".Trim(' ', '·')
-
-                        : "未找到歌词";
-
-                }
-
-
+                var position = playback?.HasTrustedTimeline == true
+                    || provider == LyricsMusicProvider.NetEaseCloudMusic
+                    ? _netEasePositionTracker.ResolvePosition(playback, desktop, document, nextTrackKey)
+                    : playback?.Position ?? TimeSpan.Zero;
+                ResolveDisplayText(
+                    provider,
+                    document,
+                    documentSource,
+                    playback,
+                    position,
+                    settings.LyricsTimingOffsetMs,
+                    desktop,
+                    title,
+                    artist,
+                    out var source,
+                    out var displayText);
 
                 var scrollDirection = settings.LyricsScrollRightToLeft
                     ? PixelBar.Sdk.Protocol.TextScrollDirection.RightToLeft
@@ -345,294 +197,355 @@ public sealed class LyricsSyncService
                 var displaySignature = $"{displayText}|{settings.LyricsScrollLongLines}|{(int)scrollDirection}";
 
                 if (!string.Equals(lastSentLine, displaySignature, StringComparison.Ordinal))
-
                 {
-
                     if (PixelBarService.Instance.HasSelectedDevice)
-
                     {
-
-                        var client = PixelBarService.Instance.CreateClient();
-
-                        LyricsDisplayFormatter.Show(
-                            client,
-                            displayText,
-                            settings.LyricsScrollLongLines,
-                            scrollDirection);
-
-                        lastSentLine = displaySignature;
-
+                        try
+                        {
+                            var client = PixelBarService.Instance.CreateClient();
+                            LyricsDisplayFormatter.Show(
+                                client,
+                                displayText,
+                                settings.LyricsScrollLongLines,
+                                scrollDirection);
+                            lastSentLine = displaySignature;
+                        }
+                        catch (Exception ex)
+                        {
+                            var deviceError = FormatExceptionMessage(ex);
+                            UpdateStatus(
+                                LyricsSyncStatus.Error,
+                                source,
+                                title,
+                                artist,
+                                deviceError,
+                                $"{BuildDiagnostic(provider, playback, desktop)}；设备：{deviceError}");
+                            await Task.Delay(1000, cancellationToken).ConfigureAwait(false);
+                            continue;
+                        }
                     }
 
-
-
                     UpdateStatus(
-
                         source == LyricSource.Fallback ? LyricsSyncStatus.PlayingFallback : LyricsSyncStatus.PlayingWithLyrics,
-
                         source,
-
                         title,
-
                         artist,
-
                         displayText,
-
-                        BuildDiagnostic(playback, desktop));
-
+                        BuildDiagnostic(provider, playback, desktop));
                 }
-
                 else
-
                 {
-
                     UpdateStatus(
-
                         source == LyricSource.Fallback ? LyricsSyncStatus.PlayingFallback : LyricsSyncStatus.PlayingWithLyrics,
-
                         source,
-
                         title,
-
                         artist,
-
                         displayText,
-
-                        BuildDiagnostic(playback, desktop));
-
+                        BuildDiagnostic(provider, playback, desktop));
                 }
-
             }
-
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-
             {
-
                 break;
-
             }
-
             catch (Exception ex)
-
             {
-
-                UpdateStatus(LyricsSyncStatus.Error, LyricSource.None, null, null, ex.Message, ex.Message);
-
+                var message = FormatExceptionMessage(ex);
+                UpdateStatus(
+                    LyricsSyncStatus.Error,
+                    LastSource,
+                    LastTitle,
+                    LastArtist,
+                    message,
+                    $"{BuildDiagnostic(AppSettingsService.Instance.Current.LyricsProvider, null, null)}；错误：{message}");
             }
-
-
 
             await Task.Delay(350, cancellationToken).ConfigureAwait(false);
-
         }
-
     }
 
-
-
-    private LrcDocument? ResolveDocument(AppSettings settings, string? title, string? artist, out LyricSource source)
-
-    {
-
-        var qq = !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(artist)
-
-            ? _qqLyricProvider.TryFindLyrics(title ?? string.Empty, artist ?? string.Empty, settings.QqMusicLyricDirectory)
-
-            : _qqLyricProvider.TryFindMostRecent(settings.QqMusicLyricDirectory);
-
-        if (qq is not null && qq.Lines.Count > 0)
-
+    private static DesktopLyricSnapshot? TryReadDesktopLyrics(LyricsMusicProvider provider) =>
+        provider switch
         {
+            LyricsMusicProvider.QqMusic => QqMusicDesktopLyricsReader.TryRead(),
+            LyricsMusicProvider.NetEaseCloudMusic => NetEaseDesktopLyricsReader.TryRead(),
+            _ => null,
+        };
 
-            source = LyricSource.QrcCache;
+    private LrcDocument? TryFindMostRecent(LyricsMusicProvider provider, AppSettings settings) =>
+        provider == LyricsMusicProvider.QqMusic
+            ? _qqLyricProvider.TryFindMostRecent(settings.QqMusicLyricDirectory)
+            : null;
 
-            return qq;
+    private MediaPlaybackInfo? TryBuildFallbackPlayback(
+        LyricsMusicProvider provider,
+        LrcDocument? recentLyric,
+        DesktopLyricSnapshot? desktop)
+    {
+        if (provider == LyricsMusicProvider.QqMusic)
+            return null;
 
-        }
+        if (!NetEaseDesktopLyricsReader.IsProcessRunning())
+            return null;
 
+        var track = NetEaseDesktopLyricsReader.TryParseMainWindowTrack();
+        var title = track?.Title ?? recentLyric?.Title ?? desktop?.Line;
+        var artist = track?.Artist ?? recentLyric?.Artist ?? desktop?.Artist;
+        if (string.IsNullOrWhiteSpace(title))
+            return null;
 
-
-        source = LyricSource.None;
-
-        return null;
-
+        return new MediaPlaybackInfo(
+            title,
+            artist ?? "未知歌手",
+            TimeSpan.Zero,
+            TimeSpan.Zero,
+            true,
+            "cloudmusic.exe",
+            HasTrustedTimeline: false);
     }
 
-
-
-    private string? GuessTitleFromRecentQrc(AppSettings settings, string artistHint)
-
+    private async Task<(LrcDocument? Document, LyricSource Source)> ResolveDocumentAsync(
+        LyricsMusicProvider provider,
+        AppSettings settings,
+        string? title,
+        string? artist,
+        string? netEaseSongId,
+        CancellationToken cancellationToken)
     {
+        if (provider == LyricsMusicProvider.NetEaseCloudMusic)
+        {
+            var (netEase, source) = await _netEaseLyricProvider.TryFindLyricsForTrackAsync(
+                title,
+                artist,
+                netEaseSongId,
+                settings.NetEaseLyricDirectory,
+                cancellationToken).ConfigureAwait(false);
+            if (netEase is not null && netEase.Lines.Count > 0)
+                return (netEase, source);
+        }
+        else
+        {
+            var qq = !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(artist)
+                ? _qqLyricProvider.TryFindLyrics(title ?? string.Empty, artist ?? string.Empty, settings.QqMusicLyricDirectory)
+                : _qqLyricProvider.TryFindMostRecent(settings.QqMusicLyricDirectory);
+            if (qq is not null && qq.Lines.Count > 0)
+                return (qq, LyricSource.QrcCache);
+        }
 
+        return (null, LyricSource.None);
+    }
+
+    private static void ResolveDisplayText(
+        LyricsMusicProvider provider,
+        LrcDocument? document,
+        LyricSource documentSource,
+        MediaPlaybackInfo? playback,
+        TimeSpan position,
+        int timingOffsetMs,
+        DesktopLyricSnapshot? desktop,
+        string? title,
+        string? artist,
+        out LyricSource source,
+        out string displayText)
+    {
+        var preferTimedLine = provider == LyricsMusicProvider.QqMusic
+            && playback?.HasTrustedTimeline == true;
+
+        if (document is not null)
+        {
+            var timedLine = (playback?.HasTrustedTimeline == true || position > TimeSpan.Zero)
+                ? document.GetSingableLineAt(position, timingOffsetMs)
+                : null;
+
+            if (!preferTimedLine
+                && desktop?.Line is { Length: > 0 } desktopLine
+                && IsUsableDesktopLine(provider, desktopLine, title, artist)
+                && LyricMatchHelper.FindMatchingLine(document, desktopLine) is { } matchedLine)
+            {
+                if (timedLine is null || !LyricMatchHelper.LinesEquivalent(timedLine, matchedLine))
+                {
+                    source = documentSource;
+                    displayText = matchedLine;
+                    return;
+                }
+            }
+
+            if (timedLine is { Length: > 0 })
+            {
+                source = documentSource;
+                displayText = timedLine;
+                return;
+            }
+
+            if (!preferTimedLine
+                && desktop?.Line is { Length: > 0 } rawDesktopLine
+                && IsUsableDesktopLine(provider, rawDesktopLine, title, artist))
+            {
+                source = documentSource;
+                displayText = rawDesktopLine;
+                return;
+            }
+
+            if (playback?.HasTrustedTimeline == true)
+            {
+                source = documentSource;
+                displayText = document.GetSingableLineAt(position, timingOffsetMs)
+                    ?? (!string.IsNullOrWhiteSpace(title) ? $"{title} · {artist}".Trim(' ', '·') : "…");
+                return;
+            }
+        }
+
+        if (desktop is { Line: var fallbackDesktopLine }
+            && IsUsableDesktopLine(provider, fallbackDesktopLine, title, artist))
+        {
+            source = LyricSource.Desktop;
+            displayText = fallbackDesktopLine;
+            return;
+        }
+
+        source = LyricSource.Fallback;
+        displayText = !string.IsNullOrWhiteSpace(title)
+            ? $"{title} · {artist}".Trim(' ', '·')
+            : "未找到歌词";
+    }
+
+    private static bool IsUsableDesktopLine(
+        LyricsMusicProvider provider,
+        string line,
+        string? title,
+        string? artist) =>
+        provider switch
+        {
+            LyricsMusicProvider.NetEaseCloudMusic => NetEaseDesktopLyricsReader.IsUsableLyricLine(line, title, artist),
+            LyricsMusicProvider.QqMusic => QqMusicDesktopLyricsReader.IsUsableLyricLine(line, title, artist),
+            _ => !string.IsNullOrWhiteSpace(line),
+        };
+
+    private string? GuessTitleFromRecentQq(AppSettings settings, string? artistHint)
+    {
         var recent = _qqLyricProvider.TryFindMostRecent(settings.QqMusicLyricDirectory);
-
         if (recent?.Artist is not null
-
+            && artistHint is not null
             && (recent.Artist.Contains(artistHint, StringComparison.OrdinalIgnoreCase)
-
                 || artistHint.Contains(recent.Artist, StringComparison.OrdinalIgnoreCase)))
-
+        {
             return recent.Title;
-
-
+        }
 
         return recent?.Title;
-
     }
 
-
-
-    private string BuildDiagnostic(MediaPlaybackInfo? playback, DesktopLyricSnapshot? desktop)
-
+    private string BuildDiagnostic(
+        LyricsMusicProvider provider,
+        MediaPlaybackInfo? playback,
+        DesktopLyricSnapshot? desktop)
     {
-
         var settings = AppSettingsService.Instance.Current;
+        var desktopText = desktop is { Line: var desktopLine }
+                          && NetEaseDesktopLyricsReader.IsUsableLyricLine(desktopLine)
+            ? "已连接"
+            : NetEaseDesktopLyricsReader.IsDesktopLyricWindowOpen()
+                ? "已连接（窗口已开，等待歌词换行）"
+                : "未检测到";
+
+        if (provider == LyricsMusicProvider.NetEaseCloudMusic)
+        {
+            var dirs = _netEaseLyricProvider.GetSearchDirectories(settings.NetEaseLyricDirectory);
+            var dirText = dirs.Count == 0 ? "未找到网易云歌词缓存" : string.Join("；", dirs);
+            var smtcText = playback switch
+            {
+                null => "未检测到",
+                { IsInfLinkSession: true, NetEaseSongId: var id, HasTrustedTimeline: true, Position: var pos }
+                    => $"InfLink-rs（ID {id}，进度 {FormatPosition(pos)}）",
+                { IsInfLinkSession: true, NetEaseSongId: var id } => $"InfLink-rs 已连接（ID {id}）",
+                { HasTrustedTimeline: true, Position: var pos } => $"已连接（系统进度 {FormatPosition(pos)}）",
+                { IsPlaying: true, Duration: var d } when d > TimeSpan.FromSeconds(5)
+                    => "SMTC 已连接但进度不可用，桌面锚定 + 内置计时",
+                _ => _netEasePositionTracker.LastMode == NetEasePositionMode.AnchoredTimer
+                    ? "无 InfLink-rs，请先一键安装"
+                    : "缺少 InfLink-rs（必需）",
+            };
+            return $"网易云缓存 {_netEaseLyricProvider.IndexedFileCount} 首（{dirText}）；SMTC：{smtcText}；桌面歌词：{desktopText}";
+        }
+
+        if (provider == LyricsMusicProvider.QqMusic)
+            desktopText = desktop is null ? "未检测到" : "已连接";
 
         var qqDirs = _qqLyricProvider.GetSearchDirectories(settings.QqMusicLyricDirectory);
-
         var qqText = qqDirs.Count == 0 ? "未找到 QQ 音乐缓存" : string.Join("；", qqDirs);
-
-        var desktopText = desktop is null ? "未检测到" : "已连接";
-
         return $"QQ qrc {_qqLyricProvider.IndexedFileCount} 首（{qqText}）；解密缓存 {_qqLyricProvider.DecryptedCacheFileCount} 个（{_qqLyricProvider.DecryptedCacheDirectory}）；桌面歌词：{desktopText}";
-
     }
 
+    private static string FormatPosition(TimeSpan position) =>
+        position.TotalMinutes >= 1
+            ? position.ToString(@"m\:ss")
+            : $"{position.TotalSeconds:F1}s";
 
+    private static string FormatExceptionMessage(Exception ex) =>
+        string.IsNullOrWhiteSpace(ex.Message) ? ex.GetType().Name : ex.Message;
 
     private void UpdateStatus(
-
         LyricsSyncStatus status,
-
         LyricSource source,
-
         string? title,
-
         string? artist,
-
         string? line,
-
         string? diagnostic)
-
     {
-
         CurrentStatus = status;
-
         LastSource = source;
-
         if (title is not null)
-
             LastTitle = title;
-
         if (artist is not null)
-
             LastArtist = artist;
-
         if (line is not null)
-
             LastLine = line;
-
         if (diagnostic is not null)
-
             DiagnosticMessage = diagnostic;
 
-
-
         StatusChanged?.Invoke(this, new LyricsSyncStatusEvent(
-
             title ?? LastTitle,
-
             artist ?? LastArtist,
-
             line ?? LastLine,
-
             status,
-
             source,
-
             DiagnosticMessage));
-
     }
-
 }
-
-
 
 public enum LyricSource
-
 {
-
     None,
-
     Desktop,
-
     QrcCache,
-
+    NetEaseCache,
+    NetEaseApi,
     Fallback,
-
 }
-
-
 
 public enum LyricsSyncStatus
-
 {
-
     Idle,
-
-    WaitingForQqMusic,
-
+    WaitingForPlayer,
     Paused,
-
     PlayingWithLyrics,
-
     PlayingFallback,
-
     Error,
-
 }
-
-
 
 public sealed class LyricsSyncStatusEvent(
-
     string? title,
-
     string? artist,
-
     string? line,
-
     LyricsSyncStatus status,
-
     LyricSource source,
-
     string? diagnostic)
-
     : EventArgs
-
 {
-
     public string? Title { get; } = title;
-
-
-
     public string? Artist { get; } = artist;
-
-
-
     public string? Line { get; } = line;
-
-
-
     public LyricsSyncStatus Status { get; } = status;
-
-
-
     public LyricSource Source { get; } = source;
-
-
-
     public string? Diagnostic { get; } = diagnostic;
-
 }
-

@@ -10,16 +10,24 @@
 | 频谱样式 1–4 | ✅ | ✅ |
 | 像素屏主题色 | ✅ | ✅ |
 | **QQ 音乐动态歌词** | — | ✅（[说明](Lyrics-QQMusic)） |
+| **网易云音乐动态歌词** | — | ✅（[说明](Lyrics-NetEase)，须 InfLink-rs） |
 | 开机启动 / 托盘 | — | ✅ |
 | 使用引导 | — | ✅ |
 
 ### 动态歌词（桌面客户端）
 
-- 本地解密 QQ 音乐 `*_qm.qrc` 缓存
-- SMTC 播放进度同步、时间偏移微调
-- 长句滚动与方向可选
-- 解密结果落盘 `%LocalAppData%\PixelBar\LyricCache`
-- QQ 音乐桌面歌词回退
+**QQ 音乐**
+
+- 本地解密 `*_qm.qrc` 缓存（注册表 `CACHEPATH` 或自定义目录）
+- SMTC 进度同步与外推、时间偏移微调
+- 长句滚动；桌面歌词回退
+- 解密缓存 `%LocalAppData%\PixelBar\LyricCache`
+
+**网易云音乐**
+
+- 须 BetterNCM + [InfLink-rs](https://github.com/apoint123/inflink-rs)（歌词页可一键安装）
+- 按 SMTC 歌曲 ID 匹配本地缓存或 API 拉取 YRC/LRC
+- 无 InfLink 时降级为歌名匹配（进度可能不准）
 
 ## 不支持
 
