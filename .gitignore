@@ -100,3 +100,4 @@ Desktop.ini
 
 # CI wiki clone scratch dir (must not live in repo root)
 wiki-repo/
+.cursor/
