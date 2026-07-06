@@ -15,6 +15,11 @@ public sealed class LyricsSyncService
     private CancellationTokenSource? _cts;
     private Task? _loopTask;
     private int _resyncVersion;
+    private string? _activeTrackKey;
+    private TimeSpan _lastPlaybackDuration;
+    private TimeSpan _lastPlaybackPosition;
+    private string? _loadedLookupTitle;
+    private string? _loadedLookupArtist;
 
     public event EventHandler<LyricsSyncStatusEvent>? StatusChanged;
 
@@ -102,13 +107,16 @@ public sealed class LyricsSyncService
                     document = null;
                     documentSource = LyricSource.None;
                     lastSentLine = null;
+                    _activeTrackKey = null;
+                    _loadedLookupTitle = null;
+                    _loadedLookupArtist = null;
+                    _lastPlaybackPosition = TimeSpan.Zero;
                     _netEasePositionTracker.Reset();
                 }
 
                 var playback = await _monitor.TryGetPlaybackAsync(provider, cancellationToken).ConfigureAwait(false);
                 var desktop = TryReadDesktopLyrics(provider);
-                var recentLyric = TryFindMostRecent(provider, settings);
-                playback ??= TryBuildFallbackPlayback(provider, recentLyric, desktop);
+                playback ??= TryBuildFallbackPlayback(provider);
 
                 if (playback is null && desktop is null)
                 {
@@ -116,6 +124,10 @@ public sealed class LyricsSyncService
                     document = null;
                     documentSource = LyricSource.None;
                     lastSentLine = null;
+                    _activeTrackKey = null;
+                    _loadedLookupTitle = null;
+                    _loadedLookupArtist = null;
+                    _lastPlaybackPosition = TimeSpan.Zero;
                     _netEasePositionTracker.Reset();
                     UpdateStatus(
                         LyricsSyncStatus.WaitingForPlayer,
@@ -128,51 +140,109 @@ public sealed class LyricsSyncService
                     continue;
                 }
 
-                var title = playback?.Title;
-                var artist = playback?.Artist;
+                var smtcTitle = NormalizeSmtcField(playback?.Title);
+                var smtcArtist = NormalizeSmtcField(playback?.Artist);
+                var netEaseMainWindow = provider == LyricsMusicProvider.NetEaseCloudMusic
+                    ? NetEaseDesktopLyricsReader.TryParseMainWindowTrack()
+                    : null;
 
-                if (string.IsNullOrWhiteSpace(title) || title == "未知歌曲")
+                var lookupTitle = smtcTitle ?? netEaseMainWindow?.Title;
+                var lookupArtist = smtcArtist ?? netEaseMainWindow?.Artist;
+
+                if (provider == LyricsMusicProvider.QqMusic)
                 {
-                    title = recentLyric?.Title ?? desktop?.Line ?? LastTitle;
-                    if (provider == LyricsMusicProvider.QqMusic)
-                        title ??= GuessTitleFromRecentQq(settings, desktop?.Artist);
+                    lookupArtist ??= NormalizeSmtcField(desktop?.Artist);
+                    if (lookupTitle is null
+                        && desktop?.Line is { Length: > 0 } qqDesktopLine
+                        && QqMusicDesktopLyricsReader.IsUsableLyricLine(qqDesktopLine))
+                    {
+                        lookupTitle = TryResolveQqTitleFromDesktop(
+                            settings,
+                            lookupArtist,
+                            qqDesktopLine,
+                            document);
+                    }
                 }
 
-                if (string.IsNullOrWhiteSpace(artist) || artist == "未知歌手")
-                    artist = recentLyric?.Artist ?? desktop?.Artist ?? LastArtist;
+                var displayTitle = lookupTitle ?? document?.Title ?? LastTitle;
+                var displayArtist = lookupArtist ?? document?.Artist ?? LastArtist;
 
                 if (playback is not null && !playback.IsPlaying)
                 {
                     UpdateStatus(
                         LyricsSyncStatus.Paused,
                         LastSource,
-                        title,
-                        artist,
+                        displayTitle,
+                        displayArtist,
                         lastSentLine,
                         BuildDiagnostic(provider, playback, desktop));
                     await Task.Delay(800, cancellationToken).ConfigureAwait(false);
                     continue;
                 }
 
-                var nextTrackKey = $"{provider}|{title}|{artist}";
-                if (!string.Equals(trackKey, nextTrackKey, StringComparison.Ordinal))
+                var nextTrackKey = BuildTrackKey(
+                    provider,
+                    playback?.NetEaseSongId,
+                    lookupTitle,
+                    lookupArtist,
+                    playback?.Duration ?? TimeSpan.Zero);
+
+                var documentMismatch = document is not null
+                                       && lookupTitle is not null
+                                       && !LyricMatchHelper.DocumentMatchesTrack(document, lookupTitle, lookupArtist);
+                var identityChanged = _loadedLookupTitle is not null
+                                      && lookupTitle is not null
+                                      && !LyricMatchHelper.TrackMatches(
+                                          _loadedLookupTitle,
+                                          _loadedLookupArtist,
+                                          lookupTitle,
+                                          lookupArtist);
+
+                var forceTrackChange = ShouldForceTrackChange(
+                    provider,
+                    playback,
+                    document,
+                    desktop,
+                    trackKey,
+                    nextTrackKey,
+                    lookupTitle,
+                    lookupArtist);
+
+                var needsDocumentReload = forceTrackChange
+                                          || documentMismatch
+                                          || identityChanged
+                                          || !string.Equals(trackKey, nextTrackKey, StringComparison.Ordinal);
+
+                if (needsDocumentReload)
                 {
                     trackKey = nextTrackKey;
+                    _activeTrackKey = nextTrackKey;
+                    _lastPlaybackDuration = playback?.Duration ?? TimeSpan.Zero;
+                    _lastPlaybackPosition = playback?.Position ?? TimeSpan.Zero;
                     _netEasePositionTracker.Reset();
                     (document, documentSource) = await ResolveDocumentAsync(
                         provider,
                         settings,
-                        title,
-                        artist,
+                        lookupTitle,
+                        lookupArtist,
                         playback?.NetEaseSongId,
                         cancellationToken).ConfigureAwait(false);
                     lastSentLine = null;
-                    title ??= document?.Title;
-                    artist ??= document?.Artist;
+                    _loadedLookupTitle = lookupTitle ?? document?.Title;
+                    _loadedLookupArtist = lookupArtist ?? document?.Artist;
+                    displayTitle ??= document?.Title;
+                    displayArtist ??= document?.Artist;
 
                     if (provider == LyricsMusicProvider.NetEaseCloudMusic)
-                        _netEaseLyricProvider.RememberTrackMetadata(title, artist, playback?.NetEaseSongId, settings.NetEaseLyricDirectory);
+                        _netEaseLyricProvider.RememberTrackMetadata(
+                            displayTitle,
+                            displayArtist,
+                            playback?.NetEaseSongId,
+                            settings.NetEaseLyricDirectory);
                 }
+
+                var title = displayTitle;
+                var artist = displayArtist;
 
                 var position = playback?.HasTrustedTimeline == true
                     || provider == LyricsMusicProvider.NetEaseCloudMusic
@@ -243,6 +313,9 @@ public sealed class LyricsSyncService
                         displayText,
                         BuildDiagnostic(provider, playback, desktop));
                 }
+
+                if (playback?.IsPlaying == true)
+                    _lastPlaybackPosition = playback.Position;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -272,31 +345,21 @@ public sealed class LyricsSyncService
             _ => null,
         };
 
-    private LrcDocument? TryFindMostRecent(LyricsMusicProvider provider, AppSettings settings) =>
-        provider == LyricsMusicProvider.QqMusic
-            ? _qqLyricProvider.TryFindMostRecent(settings.QqMusicLyricDirectory)
-            : null;
-
-    private MediaPlaybackInfo? TryBuildFallbackPlayback(
-        LyricsMusicProvider provider,
-        LrcDocument? recentLyric,
-        DesktopLyricSnapshot? desktop)
+    private MediaPlaybackInfo? TryBuildFallbackPlayback(LyricsMusicProvider provider)
     {
-        if (provider == LyricsMusicProvider.QqMusic)
+        if (provider != LyricsMusicProvider.NetEaseCloudMusic
+            || !NetEaseDesktopLyricsReader.IsProcessRunning())
+        {
             return null;
-
-        if (!NetEaseDesktopLyricsReader.IsProcessRunning())
-            return null;
+        }
 
         var track = NetEaseDesktopLyricsReader.TryParseMainWindowTrack();
-        var title = track?.Title ?? recentLyric?.Title ?? desktop?.Line;
-        var artist = track?.Artist ?? recentLyric?.Artist ?? desktop?.Artist;
-        if (string.IsNullOrWhiteSpace(title))
+        if (track is not { Title: { Length: > 0 } title })
             return null;
 
         return new MediaPlaybackInfo(
             title,
-            artist ?? "未知歌手",
+            track.Value.Artist ?? "未知歌手",
             TimeSpan.Zero,
             TimeSpan.Zero,
             true,
@@ -325,9 +388,13 @@ public sealed class LyricsSyncService
         }
         else
         {
-            var qq = !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(artist)
-                ? _qqLyricProvider.TryFindLyrics(title ?? string.Empty, artist ?? string.Empty, settings.QqMusicLyricDirectory)
-                : _qqLyricProvider.TryFindMostRecent(settings.QqMusicLyricDirectory);
+            if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(artist))
+                return (null, LyricSource.None);
+
+            var qq = _qqLyricProvider.TryFindLyrics(
+                title ?? string.Empty,
+                artist ?? string.Empty,
+                settings.QqMusicLyricDirectory);
             if (qq is not null && qq.Lines.Count > 0)
                 return (qq, LyricSource.QrcCache);
         }
@@ -421,18 +488,112 @@ public sealed class LyricsSyncService
             _ => !string.IsNullOrWhiteSpace(line),
         };
 
-    private string? GuessTitleFromRecentQq(AppSettings settings, string? artistHint)
+    private static string? NormalizeSmtcField(string? value)
     {
-        var recent = _qqLyricProvider.TryFindMostRecent(settings.QqMusicLyricDirectory);
-        if (recent?.Artist is not null
-            && artistHint is not null
-            && (recent.Artist.Contains(artistHint, StringComparison.OrdinalIgnoreCase)
-                || artistHint.Contains(recent.Artist, StringComparison.OrdinalIgnoreCase)))
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        value = value.Trim();
+        return value is "未知歌曲" or "未知歌手" ? null : value;
+    }
+
+    private static string BuildTrackKey(
+        LyricsMusicProvider provider,
+        string? netEaseSongId,
+        string? title,
+        string? artist,
+        TimeSpan duration)
+    {
+        if (provider == LyricsMusicProvider.NetEaseCloudMusic
+            && InfLinkSmtcParser.IsNumericSongId(netEaseSongId))
         {
-            return recent.Title;
+            return $"{provider}|id:{netEaseSongId}";
         }
 
-        return recent?.Title;
+        var durationPart = duration > TimeSpan.FromSeconds(5)
+            ? ((int)duration.TotalSeconds).ToString()
+            : "0";
+        return $"{provider}|{title ?? string.Empty}|{artist ?? string.Empty}|{durationPart}";
+    }
+
+    private bool ShouldForceTrackChange(
+        LyricsMusicProvider provider,
+        MediaPlaybackInfo? playback,
+        LrcDocument? document,
+        DesktopLyricSnapshot? desktop,
+        string? currentTrackKey,
+        string nextTrackKey,
+        string? lookupTitle,
+        string? lookupArtist)
+    {
+        if (currentTrackKey is null || document is null)
+            return false;
+
+        if (!string.Equals(currentTrackKey, nextTrackKey, StringComparison.Ordinal))
+            return false;
+
+        if (provider == LyricsMusicProvider.NetEaseCloudMusic
+            && InfLinkSmtcParser.IsNumericSongId(playback?.NetEaseSongId)
+            && _activeTrackKey is not null
+            && !_activeTrackKey.Contains($"id:{playback!.NetEaseSongId}", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (playback?.Duration > TimeSpan.FromSeconds(10)
+            && _lastPlaybackDuration > TimeSpan.FromSeconds(10)
+            && Math.Abs((playback.Duration - _lastPlaybackDuration).TotalSeconds) > 8)
+        {
+            return true;
+        }
+
+        if (provider == LyricsMusicProvider.QqMusic
+            && lookupTitle is not null
+            && document is not null
+            && !LyricMatchHelper.DocumentMatchesTrack(document, lookupTitle, lookupArtist))
+        {
+            return true;
+        }
+
+        if (playback?.IsPlaying == true)
+        {
+            var pos = playback.Position;
+            if (_lastPlaybackPosition > TimeSpan.FromSeconds(15)
+                && pos < TimeSpan.FromSeconds(10)
+                && pos + TimeSpan.FromSeconds(10) < _lastPlaybackPosition)
+            {
+                return true;
+            }
+        }
+
+        if (desktop?.Line is { Length: > 0 } desktopLine
+            && IsUsableDesktopLine(provider, desktopLine, lookupTitle, lookupArtist)
+            && LyricMatchHelper.FindMatchingLine(document, desktopLine) is null
+            && !LyricMetadataFilter.IsMetadataLine(desktopLine))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private string? TryResolveQqTitleFromDesktop(
+        AppSettings settings,
+        string? artistHint,
+        string desktopLine,
+        LrcDocument? currentDocument)
+    {
+        if (currentDocument is not null
+            && LyricMatchHelper.FindMatchingLine(currentDocument, desktopLine) is not null
+            && currentDocument.Title is not null)
+        {
+            return currentDocument.Title;
+        }
+
+        return _qqLyricProvider.TryFindTitleByDesktopLine(
+            desktopLine,
+            artistHint,
+            settings.QqMusicLyricDirectory);
     }
 
     private string BuildDiagnostic(

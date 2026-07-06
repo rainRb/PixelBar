@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [0.0.4.1] - 2026-07-06
+
+### 修复
+
+- **切歌后歌词错歌**：网易云优先用 InfLink `NCM-{id}` 识别曲目；SMTC 标题变化、时长变化、进度回跳或桌面歌词与文档不匹配时强制重载
+- **QQ 音乐切歌后歌词整首不对**：移除「最近 qrc」猜测；加载后校验歌名/歌手；无 SMTC 标题时由桌面歌词行反查 qrc；禁止无标题时随机取最新缓存
+- **Wiki 同步 Action**：修复 `git push` 时 token 丢失导致同步失败
+
 ## [0.0.4] - 2026-07-03
 
 ### 新增
@@ -77,6 +85,7 @@
 - 托盘、开机启动、首次使用引导
 - GitHub Actions CI / Release 工作流
 
+[0.0.4.1]: https://github.com/traceless929/PixelBar/compare/v0.0.4...v0.0.4.1
 [0.0.4]: https://github.com/traceless929/PixelBar/compare/v0.0.3.1...v0.0.4
 [0.0.3.1]: https://github.com/traceless929/PixelBar/compare/v0.0.3...v0.0.3.1
 [0.0.3]: https://github.com/traceless929/PixelBar/compare/v0.0.2.1...v0.0.3

@@ -50,8 +50,16 @@ public sealed partial class QqMusicLyricProvider
     public LrcDocument? TryFindLyrics(string title, string artist, string? customDirectory)
     {
         EnsureIndex(customDirectory);
+
+        if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(artist))
+            return null;
+
         var match = LyricMatchHelper.PickBestMatch(_index, title, artist);
         if (match is null)
+            return null;
+
+        if (!string.IsNullOrWhiteSpace(title)
+            && !LyricMatchHelper.DocumentMatchesTrack(match, title, artist))
             return null;
 
         if (!string.IsNullOrWhiteSpace(match.Title)
@@ -68,6 +76,60 @@ public sealed partial class QqMusicLyricProvider
         }
 
         return match;
+    }
+
+    public LrcDocument? TryFindMostRecentForArtist(string? artist, string? customDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(artist))
+            return null;
+
+        EnsureIndex(customDirectory);
+        return _index
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.Artist)
+                && (entry.Artist.Contains(artist, StringComparison.OrdinalIgnoreCase)
+                    || artist.Contains(entry.Artist, StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(entry => entry.Modified)
+            .Select(entry => entry.Document)
+            .FirstOrDefault(document => document is not null);
+    }
+
+    public string? TryFindTitleByDesktopLine(string desktopLine, string? artistHint, string? customDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(desktopLine))
+            return null;
+
+        EnsureIndex(customDirectory);
+        IndexedLyricEntry? bestEntry = null;
+        var bestScore = 0;
+
+        foreach (var entry in _index)
+        {
+            if (entry.Document is null
+                || LyricMatchHelper.FindMatchingLine(entry.Document, desktopLine) is null)
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(artistHint)
+                && !string.IsNullOrWhiteSpace(entry.Artist)
+                && !entry.Artist.Contains(artistHint, StringComparison.OrdinalIgnoreCase)
+                && !artistHint.Contains(entry.Artist, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var score = LyricMatchHelper.ScoreMatch(
+                entry,
+                entry.Title ?? entry.Document.Title ?? string.Empty,
+                entry.Artist ?? entry.Document.Artist ?? string.Empty);
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestEntry = entry;
+            }
+        }
+
+        return bestEntry?.Title ?? bestEntry?.Document.Title;
     }
 
 

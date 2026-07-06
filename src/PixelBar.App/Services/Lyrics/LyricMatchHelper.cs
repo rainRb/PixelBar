@@ -60,6 +60,17 @@ internal static class LyricMatchHelper
         return TextMatch(leftArtist, rightArtist);
     }
 
+    public static bool DocumentMatchesTrack(LrcDocument document, string? title, string? artist)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            return true;
+
+        if (TrackMatches(document.Title, document.Artist, title, artist))
+            return true;
+
+        return ScoreDocumentContent(document, title, artist ?? string.Empty) >= 40;
+    }
+
     public static LrcDocument? PickBestMatch(
         IReadOnlyList<IndexedLyricEntry> index,
         string title,
@@ -91,14 +102,6 @@ internal static class LyricMatchHelper
 
         if (bestScore >= 60)
             return bestEntry?.Document;
-
-        if (string.IsNullOrWhiteSpace(Normalize(title)))
-        {
-            return index
-                .OrderByDescending(entry => entry.Modified)
-                .Select(entry => entry.Document)
-                .FirstOrDefault(document => document is not null);
-        }
 
         return null;
     }

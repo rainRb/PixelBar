@@ -12,9 +12,8 @@
 
 ## v{VERSION} 亮点
 
-- **网易云音乐动态歌词**：InfLink-rs 一键安装；按歌曲 ID 匹配缓存或 API；YRC/LRC 解析
-- **QQ 音乐歌词改进**：SMTC 进度外推、Live 版本匹配、时间轴优先
-- **界面重构**：深色主题与统一导航
+- **修复切歌后歌词错歌**（网易云 + QQ 音乐）：InfLink 歌曲 ID 优先、SMTC 变化检测、QQ 桌面歌词反查
+- 含 v0.0.4 全部能力：网易云/QQ 动态歌词、InfLink 一键安装、深色 UI
 - 含标准安装包、便携版、CLI 与 SDK
 
 详细说明：
@@ -30,6 +29,6 @@
 
 ## 变更记录
 
-https://github.com/traceless929/PixelBar/blob/main/CHANGELOG.md#004---2026-07-03
+https://github.com/traceless929/PixelBar/blob/main/CHANGELOG.md#0041---2026-07-06
 
 完整提交：https://github.com/traceless929/PixelBar/commits/v{VERSION}

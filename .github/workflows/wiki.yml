@@ -22,21 +22,23 @@ jobs:
         run: |
           set -e
           WIKI_DIR="${RUNNER_TEMP}/PixelBar.wiki"
+          REPO="${{ github.repository }}"
           rm -rf "$WIKI_DIR"
-          WIKI_URL="https://${GITHUB_TOKEN}@github.com/${{ github.repository }}.wiki.git"
+          WIKI_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.wiki.git"
           if ! git clone "$WIKI_URL" "$WIKI_DIR" 2>/dev/null; then
             echo "::warning::Wiki 仓库尚未初始化。请在 GitHub 网页 Wiki 中创建第一页后再重试。"
-            echo "https://github.com/${{ github.repository }}/wiki/_new"
+            echo "https://github.com/${REPO}/wiki/_new"
             exit 0
           fi
           rsync -av --delete --exclude README.md --exclude .git docs/wiki/ "$WIKI_DIR/"
           cd "$WIKI_DIR"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "$WIKI_URL"
           if git status --porcelain | grep -q .; then
             git add -A
             git commit -m "docs: sync wiki from docs/wiki (${{ github.sha }})"
-            git push
+            git push origin HEAD:master
           else
             echo "Wiki already up to date."
           fi

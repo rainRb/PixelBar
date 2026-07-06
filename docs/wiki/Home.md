@@ -24,4 +24,4 @@
 
 ## 当前版本
 
-**v0.0.4** — 网易云 + QQ 音乐动态歌词；InfLink-rs 一键安装；界面重构。详见 [Release](https://github.com/traceless929/PixelBar/releases) 与 [变更记录](https://github.com/traceless929/PixelBar/blob/main/CHANGELOG.md)。
+**v0.0.4.1** — 修复切歌后歌词错歌（网易云 + QQ 音乐）。详见 [Release](https://github.com/traceless929/PixelBar/releases) 与 [变更记录](https://github.com/traceless929/PixelBar/blob/main/CHANGELOG.md)。
