@@ -269,7 +269,7 @@ public sealed class LyricsSyncService
                         lookupArtist,
                         playback?.NetEaseSongId,
                         cancellationToken).ConfigureAwait(false);
-                    lastSentLine = null;
+                    // 歌词文档可因桌面歌词匹配失败而反复重载；屏幕未变化时保留去重状态。
                     _loadedLookupTitle = lookupTitle ?? document?.Title;
                     _loadedLookupArtist = lookupArtist ?? document?.Artist;
                     displayTitle ??= document?.Title;
@@ -309,7 +309,7 @@ public sealed class LyricsSyncService
                 var animation = Enum.IsDefined(settings.LyricsAnimation)
                     ? settings.LyricsAnimation
                     : PixelBar.Sdk.Protocol.LyricAnimation.BottomToTop;
-                var displaySignature = $"{displayText}|{settings.LyricsScrollLongLines}|{(int)scrollDirection}|{(int)animation}|{Volatile.Read(ref _displayVersion)}";
+                var displaySignature = $"{nextTrackKey}|{displayText}|{settings.LyricsScrollLongLines}|{(int)scrollDirection}|{(int)animation}|{Volatile.Read(ref _displayVersion)}";
 
                 if (!string.Equals(lastSentLine, displaySignature, StringComparison.Ordinal))
                 {
