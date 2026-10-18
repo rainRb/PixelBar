@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
-    <Version>0.0.4.2</Version>
-    <InformationalVersion>0.0.4.2-lyrics-animations</InformationalVersion>
+    <Version>0.0.4.3</Version>
+    <InformationalVersion>0.0.4.3-lyrics-page-fix</InformationalVersion>
     <Authors>traceless929</Authors>
     <Company>PixelBar</Company>
     <Copyright>Copyright © PixelBar Contributors</Copyright>

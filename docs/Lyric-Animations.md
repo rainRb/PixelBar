@@ -26,6 +26,21 @@ pixelbar dry-run lyric "歌词动画预览" 2
 dotnet run --project tools/LyricAnimationTest -c Release
 ```
 
+## 发布目录回归检查
+
+WinUI 的非 MSIX 程序也需要 `EnableMsixTooling=true` 才能完整发布 XAML / PRI 资源。
+不要将漏带资源的新程序覆盖到旧安装目录，否则新代码会加载旧页面，在控件连接时崩溃。
+项目默认启用此选项；本地覆盖安装前，先在独立的发布目录运行：
+
+```powershell
+dotnet publish src/PixelBar.App/PixelBar.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o publish/app-install
+./scripts/test-lyrics-page.ps1 -PublishDirectory publish/app-install
+```
+
+测试会短暂创建应用自身的测试窗口，分别构造和导航到歌词页两次，等待页面加载，检查设置没有变化后退出。
+它不启用托盘或歌词推送，不发送 HID 数据，不操作其他窗口。异常写入日志，失败返回错误。
+测试应直接运行发布目录中的程序，不能仅用 `dotnet build` 的输出代替。
+
 ## 协议与实测依据
 
 本次 2026 款 A160（VID `2D99`，PID `A160`，屏幕集合 `MI_04/Col02`、UsagePage `FF14`）响应 `EC/EE` 查询，未响应 `ED/01` 查询。不能仅凭 PID 或年份推断使用 ED 协议。本实现使用与该设备兼容的 EC 协议；A106 的 EC 命令结构保持兼容，旧款未作实机回归。
