@@ -30,6 +30,19 @@ public sealed class PixelBarClient(string? devicePath = null)
         HidReportTransport.Send(TextReportEncoder.Encode(text), DevicePath);
     }
 
+    /// <summary>用固件内置的进入/退出动画显示歌词，支持 A106 与实测 2026 款 A160 的 EC 协议。</summary>
+    public void ShowLyric(string text, LyricAnimation animation = LyricAnimation.BottomToTop)
+    {
+        var path = DevicePath ?? PixelBarDiscovery.FindPrimary()?.DevicePath
+            ?? throw new InvalidOperationException("No PixelBar screen endpoint found.");
+        foreach (var report in LyricReportEncoder.Encode(text, animation))
+            HidReportTransport.Send(report, path);
+    }
+
+    /// <summary>关闭固件歌词叠层，恢复普通文字/场景显示。</summary>
+    public void DisableLyricAnimation() =>
+        HidReportTransport.Send(LyricReportEncoder.EncodeEnable(false), DevicePath);
+
     /// <summary>设置 RGB 灯光（官方 0x77 + 设备 0x6B）。</summary>
     public void SetLight(LightMode mode, RgbColor color, byte speed = RgbReportEncoder.DefaultSpeed)
     {

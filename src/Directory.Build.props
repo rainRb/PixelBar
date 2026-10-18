@@ -1,6 +1,7 @@
 <Project>
   <PropertyGroup>
-    <Version>0.0.4.1</Version>
+    <Version>0.0.4.2</Version>
+    <InformationalVersion>0.0.4.2-lyrics-animations</InformationalVersion>
     <Authors>traceless929</Authors>
     <Company>PixelBar</Company>
     <Copyright>Copyright © PixelBar Contributors</Copyright>

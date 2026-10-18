@@ -11,6 +11,9 @@ public sealed class LyricsSyncService
     private readonly NetEaseLyricProvider _netEaseLyricProvider = new();
     private readonly NetEaseAnchoredPlaybackTracker _netEasePositionTracker = new();
     private readonly object _gate = new();
+    private readonly SemaphoreSlim _displayGate = new(1, 1);
+    private int _previewActive;
+    private int _displayVersion;
 
     private CancellationTokenSource? _cts;
     private Task? _loopTask;
@@ -85,6 +88,39 @@ public sealed class LyricsSyncService
             Start();
     }
 
+    /// <summary>串行试播三行歌词；预览期间暂停正常推送，结束后恢复当前歌词。</summary>
+    public async Task PreviewAnimationAsync(PixelBar.Sdk.Protocol.LyricAnimation animation, CancellationToken cancellationToken)
+    {
+        if (!PixelBarService.Instance.HasSelectedDevice)
+            throw new InvalidOperationException("请先在「设置」中连接 PixelBar。");
+        if (Interlocked.CompareExchange(ref _previewActive, 1, 0) != 0)
+            throw new InvalidOperationException("歌词动画正在试播，请稍候。");
+
+        try
+        {
+            await _displayGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var client = PixelBarService.Instance.CreateClient();
+                foreach (var line in new[] { "歌词动画预览", "下一句缓缓入场", "让音乐动起来" })
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    LyricsDisplayFormatter.Show(client, line, false, animation: animation);
+                    await Task.Delay(1600, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                _displayGate.Release();
+            }
+        }
+        finally
+        {
+            Interlocked.Increment(ref _displayVersion);
+            Volatile.Write(ref _previewActive, 0);
+        }
+    }
+
     private async Task RunLoopAsync(CancellationToken cancellationToken)
     {
         string? trackKey = null;
@@ -97,6 +133,12 @@ public sealed class LyricsSyncService
         {
             try
             {
+                if (Volatile.Read(ref _previewActive) != 0)
+                {
+                    await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
                 var settings = AppSettingsService.Instance.Current;
                 var provider = settings.LyricsProvider;
                 var resyncVersion = Volatile.Read(ref _resyncVersion);
@@ -264,7 +306,10 @@ public sealed class LyricsSyncService
                 var scrollDirection = settings.LyricsScrollRightToLeft
                     ? PixelBar.Sdk.Protocol.TextScrollDirection.RightToLeft
                     : PixelBar.Sdk.Protocol.TextScrollDirection.LeftToRight;
-                var displaySignature = $"{displayText}|{settings.LyricsScrollLongLines}|{(int)scrollDirection}";
+                var animation = Enum.IsDefined(settings.LyricsAnimation)
+                    ? settings.LyricsAnimation
+                    : PixelBar.Sdk.Protocol.LyricAnimation.BottomToTop;
+                var displaySignature = $"{displayText}|{settings.LyricsScrollLongLines}|{(int)scrollDirection}|{(int)animation}|{Volatile.Read(ref _displayVersion)}";
 
                 if (!string.Equals(lastSentLine, displaySignature, StringComparison.Ordinal))
                 {
@@ -272,13 +317,29 @@ public sealed class LyricsSyncService
                     {
                         try
                         {
-                            var client = PixelBarService.Instance.CreateClient();
-                            LyricsDisplayFormatter.Show(
-                                client,
-                                displayText,
-                                settings.LyricsScrollLongLines,
-                                scrollDirection);
-                            lastSentLine = displaySignature;
+                            await _displayGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                            try
+                            {
+                                if (Volatile.Read(ref _previewActive) != 0)
+                                    continue;
+
+                                var client = PixelBarService.Instance.CreateClient();
+                                LyricsDisplayFormatter.Show(
+                                    client,
+                                    displayText,
+                                    settings.LyricsScrollLongLines,
+                                    scrollDirection,
+                                    animation);
+                                lastSentLine = displaySignature;
+                            }
+                            finally
+                            {
+                                _displayGate.Release();
+                            }
+                        }
+                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                        {
+                            throw;
                         }
                         catch (Exception ex)
                         {

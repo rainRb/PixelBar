@@ -95,6 +95,8 @@ foreach (var p in packets)
 | API | 说明 |
 |-----|------|
 | `ShowText` | 文字 + 布局（静态/滚动、对齐） |
+| `ShowLyric` | 五组固件歌词进入/退出动画、UTF-8 长句分包（[说明与协议依据](../../docs/Lyric-Animations.md)） |
+| `DisableLyricAnimation` | 关闭歌词叠层，恢复普通文字或场景 |
 | `SetLight` | 6 种灯效 + 颜色（速度仅 mode 1–2） |
 | `ShowClock` / `ShowPattern` | 时钟样式 1–11 |
 | `ShowSpectrum` | 频谱样式 1–4 |
