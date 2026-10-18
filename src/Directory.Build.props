@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
-    <Version>0.0.4.4</Version>
-    <InformationalVersion>0.0.4.4-lyrics-once</InformationalVersion>
+    <Version>0.0.4.6</Version>
+    <InformationalVersion>0.0.4.6-lyrics-fetch-fix</InformationalVersion>
     <Authors>traceless929</Authors>
     <Company>PixelBar</Company>
     <Copyright>Copyright © PixelBar Contributors</Copyright>

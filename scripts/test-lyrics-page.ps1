@@ -1,4 +1,4 @@
-# 对完整发布目录运行实际 WinUI 页面构造、加载和 Frame.Navigate 检查。
+# 对完整发布目录检查歌词时间轴选择，以及实际 WinUI 页面构造、加载和 Frame.Navigate。
 # 不启动托盘或歌词推送，不发送 HID 数据，不操作鼠标或键盘。
 param(
     [Parameter(Mandatory)]
@@ -22,7 +22,10 @@ try {
     }
     $testLog = if (Test-Path -LiteralPath $testLogPath) { Get-Content -LiteralPath $testLogPath -Raw } else { '' }
     Write-Host $testLog
-    if ($testProcess.ExitCode -ne 0 -or $testLog -notmatch '(?m)^\S+ PASS direct construction and Frame.Navigate, twice each; preferences unchanged') {
+    if ($testProcess.ExitCode -ne 0 -or
+        $testLog -notmatch '(?m)^\S+ PASS \d+ timeline checks:' -or
+        $testLog -notmatch '(?m)^\S+ PASS \d+ NetEase API response checks:' -or
+        $testLog -notmatch '(?m)^\S+ PASS direct construction and Frame.Navigate, twice each; preferences unchanged') {
         throw "歌词页面检查失败，退出码：$($testProcess.ExitCode)，日志：$testLogPath"
     }
 } finally {

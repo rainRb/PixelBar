@@ -127,6 +127,7 @@ public sealed class LyricsSyncService
         LrcDocument? document = null;
         LyricSource documentSource = LyricSource.None;
         string? lastSentLine = null;
+        var nextDocumentRetryUtc = DateTime.MinValue;
         var consumedResyncVersion = Volatile.Read(ref _resyncVersion);
 
         while (!cancellationToken.IsCancellationRequested)
@@ -157,7 +158,10 @@ public sealed class LyricsSyncService
                 }
 
                 var playback = await _monitor.TryGetPlaybackAsync(provider, cancellationToken).ConfigureAwait(false);
-                var desktop = TryReadDesktopLyrics(provider);
+                // InfLink 已提供可靠进度时，不再从整个网易云窗口猜测当前歌词。
+                var desktop = provider == LyricsMusicProvider.NetEaseCloudMusic && playback?.HasTrustedTimeline == true
+                    ? null
+                    : TryReadDesktopLyrics(provider);
                 playback ??= TryBuildFallbackPlayback(provider);
 
                 if (playback is null && desktop is null)
@@ -253,7 +257,8 @@ public sealed class LyricsSyncService
                 var needsDocumentReload = forceTrackChange
                                           || documentMismatch
                                           || identityChanged
-                                          || !string.Equals(trackKey, nextTrackKey, StringComparison.Ordinal);
+                                          || !string.Equals(trackKey, nextTrackKey, StringComparison.Ordinal)
+                                          || (document is null && DateTime.UtcNow >= nextDocumentRetryUtc);
 
                 if (needsDocumentReload)
                 {
@@ -261,7 +266,7 @@ public sealed class LyricsSyncService
                     _activeTrackKey = nextTrackKey;
                     _lastPlaybackDuration = playback?.Duration ?? TimeSpan.Zero;
                     _lastPlaybackPosition = playback?.Position ?? TimeSpan.Zero;
-                    _netEasePositionTracker.Reset();
+                    // 重新加载同一首歌的文档不能重置进度外推；切歌由 tracker 的 trackKey 检测。
                     (document, documentSource) = await ResolveDocumentAsync(
                         provider,
                         settings,
@@ -269,6 +274,7 @@ public sealed class LyricsSyncService
                         lookupArtist,
                         playback?.NetEaseSongId,
                         cancellationToken).ConfigureAwait(false);
+                    nextDocumentRetryUtc = DateTime.UtcNow.AddSeconds(10);
                     // 歌词文档可因桌面歌词匹配失败而反复重载；屏幕未变化时保留去重状态。
                     _loadedLookupTitle = lookupTitle ?? document?.Title;
                     _loadedLookupArtist = lookupArtist ?? document?.Artist;
@@ -463,7 +469,7 @@ public sealed class LyricsSyncService
         return (null, LyricSource.None);
     }
 
-    private static void ResolveDisplayText(
+    internal static void ResolveDisplayText(
         LyricsMusicProvider provider,
         LrcDocument? document,
         LyricSource documentSource,
@@ -476,8 +482,7 @@ public sealed class LyricsSyncService
         out LyricSource source,
         out string displayText)
     {
-        var preferTimedLine = provider == LyricsMusicProvider.QqMusic
-            && playback?.HasTrustedTimeline == true;
+        var preferTimedLine = playback?.HasTrustedTimeline == true;
 
         if (document is not null)
         {
