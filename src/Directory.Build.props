@@ -1,7 +1,6 @@
 <Project>
   <PropertyGroup>
-    <Version>0.0.4.7</Version>
-    <InformationalVersion>0.0.4.7-clock-sync</InformationalVersion>
+    <Version>0.0.4.1</Version>
     <Authors>traceless929</Authors>
     <Company>PixelBar</Company>
     <Copyright>Copyright © PixelBar Contributors</Copyright>
