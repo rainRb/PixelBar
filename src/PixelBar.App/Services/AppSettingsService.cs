@@ -62,6 +62,12 @@ public sealed class AppSettingsService
         StartupRegistrationService.Apply(Current);
     }
 
+    public void UpdateAutoSyncClockOnStartup(bool enabled)
+    {
+        Current.AutoSyncClockOnStartup = enabled;
+        Save(Current);
+    }
+
     public void UpdateMinimizeToTrayOnClose(bool enabled)
     {
         Current.MinimizeToTrayOnClose = enabled;

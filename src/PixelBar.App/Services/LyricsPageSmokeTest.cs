@@ -38,6 +38,7 @@ internal static class LyricsPageSmokeTest
         {
             Write("START LyricsPage constructor and Loaded regression");
             await CheckTimelineAsync();
+            await ClockSyncSmokeTest.RunAsync();
             var settingsBefore = JsonSerializer.Serialize(AppSettingsService.Instance.Current);
             _window = new Window();
             for (var iteration = 0; iteration < 2; iteration++)
@@ -89,6 +90,22 @@ internal static class LyricsPageSmokeTest
 
             if (JsonSerializer.Serialize(AppSettingsService.Instance.Current) != settingsBefore)
                 throw new InvalidOperationException("Opening LyricsPage changed saved preferences.");
+            for (var iteration = 0; iteration < 2; iteration++)
+            {
+                var loaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                void OnNavigated(object sender, Microsoft.UI.Xaml.Navigation.NavigationEventArgs args) =>
+                    ((Page)args.Content).Loaded += (_, _) => loaded.TrySetResult();
+                frame.Navigated += OnNavigated;
+                if (!frame.Navigate(typeof(ClockPage)) || _failed)
+                    throw new InvalidOperationException("ClockPage navigation failed.");
+                frame.Navigated -= OnNavigated;
+                await loaded.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                await Task.Delay(100);
+                frame.Content = new Grid();
+            }
+            if (JsonSerializer.Serialize(AppSettingsService.Instance.Current) != settingsBefore)
+                throw new InvalidOperationException("Opening ClockPage changed saved preferences.");
+            Write("PASS ClockPage navigation and Loaded, twice; preferences unchanged");
             Write("PASS direct construction and Frame.Navigate, twice each; preferences unchanged");
             Environment.ExitCode = 0;
         }

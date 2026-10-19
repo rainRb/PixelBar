@@ -25,6 +25,8 @@ try {
     if ($testProcess.ExitCode -ne 0 -or
         $testLog -notmatch '(?m)^\S+ PASS \d+ timeline checks:' -or
         $testLog -notmatch '(?m)^\S+ PASS \d+ NetEase API response checks:' -or
+        $testLog -notmatch '(?m)^\S+ PASS \d+ clock sync checks:' -or
+        $testLog -notmatch '(?m)^\S+ PASS ClockPage navigation and Loaded, twice; preferences unchanged' -or
         $testLog -notmatch '(?m)^\S+ PASS direct construction and Frame.Navigate, twice each; preferences unchanged') {
         throw "歌词页面检查失败，退出码：$($testProcess.ExitCode)，日志：$testLogPath"
     }

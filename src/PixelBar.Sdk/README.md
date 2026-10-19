@@ -65,6 +65,7 @@ client.SetLight(LightMode.PureStatic, RgbColor.FromHex("#00FF00"));
 
 // 时钟 / 频谱 / 屏色
 client.ShowClock(3);
+client.SyncTime(); // 将电脑当前的本地日期和时间发送给音响
 client.ShowSpectrum(1);
 client.SetScreenColor(RgbColor.FromHex("#0077EE"));
 ```
@@ -99,6 +100,7 @@ foreach (var p in packets)
 | `DisableLyricAnimation` | 关闭歌词叠层，恢复普通文字或场景 |
 | `SetLight` | 6 种灯效 + 颜色（速度仅 mode 1–2） |
 | `ShowClock` / `ShowPattern` | 时钟样式 1–11 |
+| `SyncTime` | 校准本地日期/时间，保留 12/24 小时设置；返回发送的时间 |
 | `ShowSpectrum` | 频谱样式 1–4 |
 | `SetScreenColor` | 像素屏主题色（`0xEF 00 04 03` + RGB） |
 

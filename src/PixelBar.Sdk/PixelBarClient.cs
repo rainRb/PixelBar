@@ -62,6 +62,14 @@ public sealed class PixelBarClient(string? devicePath = null)
     public void ShowClock(int style) =>
         HidReportTransport.Send(PatternReportEncoder.Encode(style), DevicePath);
 
+    /// <summary>同步音响时间，默认使用电脑当前本地时间，返回实际发送的时间。</summary>
+    public DateTimeOffset SyncTime(DateTimeOffset? localTime = null)
+    {
+        var time = localTime ?? DateTimeOffset.Now;
+        HidReportTransport.Send(ClockSyncReportEncoder.Encode(time), DevicePath);
+        return time;
+    }
+
     /// <summary>?????????0xEF 00 04 03 + RGB???? screen_color_log.txt ???</summary>
     public void SetScreenColor(RgbColor color, bool syncAtmosphereLight = false)
     {

@@ -11,6 +11,8 @@ public sealed class AppSettings
 
     public bool HasCompletedWelcome { get; set; }
 
+    public bool AutoSyncClockOnStartup { get; set; } = true;
+
     public bool LyricsEnabled { get; set; }
 
     public bool LyricsScrollLongLines { get; set; } = true;

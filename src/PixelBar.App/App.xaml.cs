@@ -27,6 +27,7 @@ public partial class App : Application
         var startInTray = ShouldStartInTray(args.Arguments);
 
         MainWindowInstance = new MainWindow();
+        ClockTimeSyncService.Instance.Initialize();
         TrayIconService.Instance.Initialize(
             () => MainWindowInstance?.ShowFromTray(),
             () => MainWindowInstance?.RequestExit());
