@@ -106,6 +106,14 @@ internal static class LyricsPageSmokeTest
             if (JsonSerializer.Serialize(AppSettingsService.Instance.Current) != settingsBefore)
                 throw new InvalidOperationException("Opening ClockPage changed saved preferences.");
             Write("PASS ClockPage navigation and Loaded, twice; preferences unchanged");
+            var settingsPage = new SettingsPage();
+            var settingsLoaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            settingsPage.Loaded += (_, _) => settingsLoaded.TrySetResult();
+            frame.Content = settingsPage;
+            await settingsLoaded.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (JsonSerializer.Serialize(AppSettingsService.Instance.Current) != settingsBefore)
+                throw new InvalidOperationException("Opening SettingsPage changed saved preferences.");
+            await CheckSilentStartupAsync();
             Write("PASS direct construction and Frame.Navigate, twice each; preferences unchanged");
             Environment.ExitCode = 0;
         }
@@ -119,6 +127,42 @@ internal static class LyricsPageSmokeTest
             _window?.Close();
             Application.Current.Exit();
         }
+    }
+
+    private static async Task CheckSilentStartupAsync()
+    {
+        if (StartupLaunchPolicy.ShouldStartInTray(null, false)
+            || !StartupLaunchPolicy.ShouldStartInTray(null, true)
+            || !StartupLaunchPolicy.ShouldStartInTray("--tray", false)
+            || StartupLaunchPolicy.ShouldStartInTray("--show --tray", true)
+            || StartupLaunchPolicy.ShouldStartInTray("--tray-extra", false))
+            throw new InvalidOperationException("Silent startup argument policy failed.");
+        var saved = JsonSerializer.Deserialize<AppSettings>("""{"SilentStartup":true,"MinimizeToTrayOnClose":false,"RunAtStartup":true}""")!;
+        if (!saved.SilentStartup || saved.MinimizeToTrayOnClose
+            || !JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(saved))!.SilentStartup
+            || !StartupRegistrationService.BuildLaunchCommand(true).EndsWith(" --tray")
+            || StartupRegistrationService.BuildLaunchCommand(false).EndsWith(" --tray"))
+            throw new InvalidOperationException("Silent startup persistence or registration failed.");
+        var window = new MainWindow();
+        TrayIconService.Instance.Initialize(window.ShowFromTray, window.RequestExit);
+        window.HideToTray(showNotification: false);
+        await Task.Delay(100);
+        if (window.AppWindow.IsVisible || !TrayIconService.Instance.IsVisible)
+            throw new InvalidOperationException("Silent startup did not hide the window and retain the tray icon.");
+        window.ShowFromTray();
+        await Task.Delay(150);
+        if (!window.AppWindow.IsVisible || TrayIconService.Instance.IsVisible)
+            throw new InvalidOperationException("Tray restore did not open the panel.");
+        window.HideToTray(showNotification: false);
+        TrayIconService.Instance.Dispose();
+        var minimizeOnClose = AppSettingsService.Instance.Current.MinimizeToTrayOnClose;
+        try
+        {
+            AppSettingsService.Instance.Current.MinimizeToTrayOnClose = false;
+            window.Close();
+        }
+        finally { AppSettingsService.Instance.Current.MinimizeToTrayOnClose = minimizeOnClose; }
+        Write("PASS silent startup: independent setting, launch arguments, hidden window, tray restore and settings page");
     }
 
     private static async Task CheckTimelineAsync()

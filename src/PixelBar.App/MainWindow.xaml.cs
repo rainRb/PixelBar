@@ -44,9 +44,9 @@ public sealed partial class MainWindow : Window
 
     public void HideToTray(bool showNotification = true)
     {
-        AppWindow.Hide();
         TrayIconService.Instance.Show(
             showNotification ? "PixelBar 已最小化到通知区域，双击图标可重新打开。" : null);
+        AppWindow.Hide();
     }
 
     public void ShowFromTray()

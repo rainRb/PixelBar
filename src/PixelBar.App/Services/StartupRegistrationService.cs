@@ -24,7 +24,7 @@ public static class StartupRegistrationService
             return;
         }
 
-        key.SetValue(ValueName, BuildLaunchCommand(settings.MinimizeToTrayOnClose));
+        key.SetValue(ValueName, BuildLaunchCommand(settings.SilentStartup));
     }
 
     public static string BuildLaunchCommand(bool startInTray)

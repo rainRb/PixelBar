@@ -8,7 +8,7 @@ namespace PixelBar_App.Pages;
 
 public sealed partial class SettingsPage : Page
 {
-    private bool _loadingSettings;
+    private bool _loadingSettings = true;
 
     public SettingsPage()
     {
@@ -26,6 +26,7 @@ public sealed partial class SettingsPage : Page
         _loadingSettings = true;
         var settings = AppSettingsService.Instance.Current;
         RunAtStartupSwitch.IsOn = settings.RunAtStartup;
+        SilentStartupSwitch.IsOn = settings.SilentStartup;
         MinimizeToTraySwitch.IsOn = settings.MinimizeToTrayOnClose;
         _loadingSettings = false;
     }
@@ -40,6 +41,24 @@ public sealed partial class SettingsPage : Page
             AppSettingsService.Instance.UpdateRunAtStartup(RunAtStartupSwitch.IsOn);
             UiFeedback.Show(StatusBar, InfoBarSeverity.Success,
                 RunAtStartupSwitch.IsOn ? "已开启开机自动启动" : "已关闭开机自动启动");
+        }
+        catch (Exception ex)
+        {
+            LoadBehaviorSettings();
+            UiFeedback.Show(StatusBar, InfoBarSeverity.Error, ex.Message);
+        }
+    }
+
+    private void SilentStartupSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loadingSettings)
+            return;
+        try
+        {
+            AppSettingsService.Instance.UpdateSilentStartup(SilentStartupSwitch.IsOn);
+            UiFeedback.Show(StatusBar, InfoBarSeverity.Success, SilentStartupSwitch.IsOn
+                ? "已开启静默启动，下次启动时直接进入通知区域。"
+                : "已关闭静默启动，下次启动时显示程序面板。");
         }
         catch (Exception ex)
         {

@@ -41,6 +41,8 @@ public sealed class TrayIconService : IDisposable
     private IntPtr _iconHandle;
     private bool _added;
 
+    internal bool IsVisible => _added;
+
     private TrayIconService()
     {
         _wndProcDelegate = HandleWindowMessage;
@@ -63,7 +65,8 @@ public sealed class TrayIconService : IDisposable
 
         if (!_added)
         {
-            ShellNotifyIcon(NimAdd, ref data);
+            if (!ShellNotifyIcon(NimAdd, ref data))
+                throw new InvalidOperationException("无法创建通知区域图标。");
             _added = true;
             return;
         }

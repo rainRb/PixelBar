@@ -43,6 +43,16 @@
                             </ToggleSwitch.Header>
                         </ToggleSwitch>
                         <ToggleSwitch
+                            x:Name="SilentStartupSwitch"
+                            Header="静默启动"
+                            OffContent="关闭"
+                            OnContent="开启"
+                            Toggled="SilentStartupSwitch_Toggled" />
+                        <TextBlock
+                            Text="程序启动时以后台模式运行，不显示程序面板。双击通知区域的 PixelBar 图标可打开面板。"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            TextWrapping="Wrap" />
+                        <ToggleSwitch
                             x:Name="MinimizeToTraySwitch"
                             OffContent="关闭"
                             OnContent="开启"

@@ -24,27 +24,32 @@ public partial class App : Application
             return;
         }
 
-        var startInTray = ShouldStartInTray(args.Arguments);
+        var settings = AppSettingsService.Instance.Current;
+        var startInTray = StartupLaunchPolicy.ShouldStartInTray(args.Arguments, settings.SilentStartup);
+        if (settings.RunAtStartup)
+        {
+            try { StartupRegistrationService.Apply(settings); }
+            catch (Exception error) { System.Diagnostics.Debug.WriteLine(error); }
+        }
 
         MainWindowInstance = new MainWindow();
+        // 静默启动没有页面 Loaded，也要为歌词等后台功能完成设备选择。
+        try { PixelBarService.Instance.EnsureDefaultDevice(); }
+        catch (Exception error) { System.Diagnostics.Debug.WriteLine(error); }
         ClockTimeSyncService.Instance.Initialize();
         TrayIconService.Instance.Initialize(
             () => MainWindowInstance?.ShowFromTray(),
             () => MainWindowInstance?.RequestExit());
 
         if (startInTray)
-            MainWindowInstance.HideToTray(showNotification: false);
+        {
+            try { MainWindowInstance.HideToTray(showNotification: false); }
+            catch { MainWindowInstance.Activate(); }
+        }
         else
             MainWindowInstance.Activate();
 
         LyricsSyncService.Instance.ApplySettings();
     }
 
-    private static bool ShouldStartInTray(string? arguments)
-    {
-        if (string.IsNullOrWhiteSpace(arguments))
-            return false;
-
-        return arguments.Contains("--tray", StringComparison.OrdinalIgnoreCase);
-    }
 }

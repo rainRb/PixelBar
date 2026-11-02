@@ -44,8 +44,6 @@ public sealed class AppSettingsService
             Current = new AppSettings();
         }
 
-        if (Current.RunAtStartup)
-            StartupRegistrationService.Apply(Current);
     }
 
     public void Save(AppSettings settings)
@@ -68,12 +66,18 @@ public sealed class AppSettingsService
         Save(Current);
     }
 
+    public void UpdateSilentStartup(bool enabled)
+    {
+        Current.SilentStartup = enabled;
+        Save(Current);
+        if (Current.RunAtStartup)
+            StartupRegistrationService.Apply(Current);
+    }
+
     public void UpdateMinimizeToTrayOnClose(bool enabled)
     {
         Current.MinimizeToTrayOnClose = enabled;
         Save(Current);
-        if (Current.RunAtStartup)
-            StartupRegistrationService.Apply(Current);
     }
 
     public void CompleteWelcome()
