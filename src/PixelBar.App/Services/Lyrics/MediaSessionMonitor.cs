@@ -7,6 +7,7 @@ public sealed class MediaSessionMonitor
     private string? _lastSessionKey;
     private TimeSpan _lastPosition;
     private int _stalePositionTicks;
+    private GlobalSystemMediaTransportControlsSessionManager? _manager;
     public Task<MediaPlaybackInfo?> TryGetQqMusicPlaybackAsync(CancellationToken cancellationToken = default) =>
         TryGetPlaybackAsync(IsQqMusic, cancellationToken);
 
@@ -31,14 +32,14 @@ public sealed class MediaSessionMonitor
 
         try
         {
-            var manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            var manager = _manager ??= await GlobalSystemMediaTransportControlsSessionManager.RequestAsync().AsTask(cancellationToken).ConfigureAwait(false);
             foreach (var session in manager.GetSessions())
             {
                 var appId = session.SourceAppUserModelId ?? string.Empty;
                 if (!matcher(appId))
                     continue;
 
-                return await ReadSessionAsync(session, appId).ConfigureAwait(false);
+                return await ReadSessionAsync(session, appId, cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -47,6 +48,7 @@ public sealed class MediaSessionMonitor
         }
         catch (Exception)
         {
+            _manager = null;
             return null;
         }
 
@@ -67,11 +69,12 @@ public sealed class MediaSessionMonitor
 
     private async Task<MediaPlaybackInfo?> ReadSessionAsync(
         GlobalSystemMediaTransportControlsSession session,
-        string appId)
+        string appId,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var properties = await session.TryGetMediaPropertiesAsync().AsTask().ConfigureAwait(false);
+            var properties = await session.TryGetMediaPropertiesAsync().AsTask(cancellationToken).ConfigureAwait(false);
             if (properties is null)
                 return null;
 
@@ -114,6 +117,10 @@ public sealed class MediaSessionMonitor
             _lastSessionKey = sessionKey;
             _lastPosition = timeline.Position;
             return info;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {

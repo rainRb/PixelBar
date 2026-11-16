@@ -24,6 +24,14 @@ public partial class App : Application
             return;
         }
 
+        if (Environment.GetCommandLineArgs().Contains("--resource-probe"))
+        {
+            AppSettingsService.Instance.Current.LyricsEnabled = true;
+            LyricsSyncService.Instance.Start();
+            _ = FinishResourceProbeAsync();
+            return;
+        }
+
         var settings = AppSettingsService.Instance.Current;
         var startInTray = StartupLaunchPolicy.ShouldStartInTray(args.Arguments, settings.SilentStartup);
         if (settings.RunAtStartup)
@@ -50,6 +58,13 @@ public partial class App : Application
             MainWindowInstance.Activate();
 
         LyricsSyncService.Instance.ApplySettings();
+    }
+
+    private static async Task FinishResourceProbeAsync()
+    {
+        await Task.Delay(TimeSpan.FromSeconds(100));
+        LyricsSyncService.Instance.Stop();
+        Application.Current.Exit();
     }
 
 }

@@ -297,6 +297,8 @@ public sealed class NetEaseLyricProvider
             var memoryKey = $"{path}|{modified.Ticks}";
             if (_cache.TryGetValue(memoryKey, out var cached))
                 return cached;
+            if (_cache.Count >= 8192)
+                _cache.Clear();
 
             var pathSongId = NetEaseLyricCacheParser.TryParseSongIdFromPath(path);
             string? content = null;

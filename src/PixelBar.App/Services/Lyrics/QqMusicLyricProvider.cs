@@ -286,6 +286,9 @@ public sealed partial class QqMusicLyricProvider
 
                 return cached;
 
+            if (_cache.Count >= 8192)
+                _cache.Clear();
+
 
 
             var (title, artist) = ParseFileNameMetadata(path);

@@ -46,11 +46,35 @@ public sealed class LyricsSyncService
     {
         lock (_gate)
         {
-            if (_loopTask is { IsCompleted: false })
+            if (_cts is not null)
                 return;
 
-            _cts = new CancellationTokenSource();
-            _loopTask = Task.Run(() => RunLoopAsync(_cts.Token));
+            var previous = _loopTask;
+            var cts = new CancellationTokenSource();
+            _cts = cts;
+            var token = cts.Token;
+            _loopTask = Task.Run(async () =>
+            {
+                try
+                {
+                    if (previous is not null)
+                    {
+                        try { await previous.ConfigureAwait(false); }
+                        catch (Exception error) { System.Diagnostics.Debug.WriteLine(error); }
+                    }
+                    token.ThrowIfCancellationRequested();
+                    await RunLoopAsync(token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+                finally
+                {
+                    lock (_gate)
+                    {
+                        if (ReferenceEquals(_cts, cts)) _cts = null;
+                        cts.Dispose();
+                    }
+                }
+            });
             UpdateStatus(
                 LyricsSyncStatus.WaitingForPlayer,
                 LyricSource.None,
@@ -66,9 +90,7 @@ public sealed class LyricsSyncService
         lock (_gate)
         {
             _cts?.Cancel();
-            _cts?.Dispose();
             _cts = null;
-            _loopTask = null;
             UpdateStatus(LyricsSyncStatus.Idle, LyricSource.None, null, null, null, null);
         }
     }
@@ -128,6 +150,8 @@ public sealed class LyricsSyncService
         LyricSource documentSource = LyricSource.None;
         string? lastSentLine = null;
         var nextDocumentRetryUtc = DateTime.MinValue;
+        var nextDesktopReadUtc = DateTime.MinValue;
+        DesktopLyricSnapshot? cachedDesktop = null;
         var consumedResyncVersion = Volatile.Read(ref _resyncVersion);
 
         while (!cancellationToken.IsCancellationRequested)
@@ -159,9 +183,20 @@ public sealed class LyricsSyncService
 
                 var playback = await _monitor.TryGetPlaybackAsync(provider, cancellationToken).ConfigureAwait(false);
                 // InfLink 已提供可靠进度时，不再从整个网易云窗口猜测当前歌词。
-                var desktop = provider == LyricsMusicProvider.NetEaseCloudMusic && playback?.HasTrustedTimeline == true
-                    ? null
-                    : TryReadDesktopLyrics(provider);
+                DesktopLyricSnapshot? desktop;
+                if (provider == LyricsMusicProvider.NetEaseCloudMusic && playback?.HasTrustedTimeline == true)
+                    desktop = null;
+                else if (provider == LyricsMusicProvider.NetEaseCloudMusic)
+                {
+                    if (DateTime.UtcNow >= nextDesktopReadUtc)
+                    {
+                        cachedDesktop = TryReadDesktopLyrics(provider);
+                        nextDesktopReadUtc = DateTime.UtcNow.AddSeconds(1);
+                    }
+                    desktop = cachedDesktop;
+                }
+                else
+                    desktop = TryReadDesktopLyrics(provider);
                 playback ??= TryBuildFallbackPlayback(provider);
 
                 if (playback is null && desktop is null)
